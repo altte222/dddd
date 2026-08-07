@@ -3231,6 +3231,7 @@ local Library; do
 						local TextToDisplay = KeyString and string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "") or "None";
 	
 						TextToDisplay = string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "")
+						if TextToDisplay == "Unknown" then TextToDisplay = "None" end
 	
 						Keybind.Value = TextToDisplay;
 						KeyButton.Object.Text = TextToDisplay;
@@ -4442,11 +4443,9 @@ local Library; do
 						Toggled = Keybind.Toggled
 					};
 
-                    local KeyString = Keys[Keybind.Key] or string.gsub(tostring(RealKey), "Enum.", "") or RealKey;
-                    local TextToDisplay = KeyString and string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "") or "None";
-
-                    TextToDisplay = string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "")
-
+                    local KeyString = Keys[Keybind.Key] or string.gsub(tostring(RealKey), "Enum.", "") or RealKey;                    TextToDisplay = string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "")
+                    if TextToDisplay == "Unknown" then TextToDisplay = "None" end
+	
 					Keybind.Value = TextToDisplay;
 					KeyButton.Object.Text = TextToDisplay;
 
