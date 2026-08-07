@@ -3053,27 +3053,31 @@ local Library; do
 					SubPage = self.SubTab,
 					Section = self,
 	
-					Name = Data.Name or 'Keybind',
+					Name = Data.Name or (self and self.Name) or (Toggle and Toggle.Name) or 'Keybind',
 					Flag = Data.Flag or Library:NextFlag(),
-					Default = Data.Default or Enum.KeyCode.F;
+					Default = Data.Default or Enum.KeyCode.Unknown;
 					Callback = Data.Callback or function() end;
 					Mode = Data.Mode or "Toggle";
 					Picking = false;
-					Key = nil;
-					Value = "";
+					Key = "None";
+					Value = "None";
 					Toggled = false;
 					Open = false;
 					Class = "Keybind";
 				};
 
-				Library.Flags[Keybind.Flag] = { };
+				Library.Flags[Keybind.Flag] = { 
+					Key = "None",
+					Mode = Keybind.Mode,
+					Toggled = false
+				};
 	
 				local KeyButton = Objects:New("TextButton", {
 					Parent = NewToggle.Object,
 					FontFace = UIFont,
 					TextColor3 = Library.Theme.Text,
 					BorderColor3 = FromRGB(0, 0, 0),
-					Text = "MB2",
+					Text = "None",
 					AutoButtonColor = false,
 					AnchorPoint = V2New(1, 0),
 					Size = U2New(0, 28, 1, 0),
@@ -3174,23 +3178,32 @@ local Library; do
 
 				local Update = function()
 					if not KeybindListItem then return end
+					local isBound = Keybind.Value and Keybind.Value ~= "None" and Keybind.Value ~= "Unknown" and Keybind.Value ~= "" and Keybind.Key ~= "None" and Keybind.Key ~= "Enum.KeyCode.Unknown" and Keybind.Key ~= tostring(Enum.KeyCode.Unknown) and Keybind.Key ~= nil
 					KeybindListItem:Set(Keybind.Name, Keybind.Value or "None", Keybind.Mode or "None");
-					KeybindListItem:SetStatus(Keybind.Toggled);
+					KeybindListItem:SetStatus(isBound and Keybind.Toggled == true);
 				end
 	
 				function Keybind:Set(Key)		
 					if UserInputService:GetFocusedTextBox() then return end
 
 					if tostring(Key):find("Enum") then
-						Keybind.Key = tostring(Key);
-
-						Key = Key.Name == "Backspace" and "None" or Key.Name;
-	
-						local KeyString = Keys[Keybind.Key] or StringGSub(Key, "Enum.", "");
-						local TextToDisplay = StringGSub(StringGSub(KeyString, "KeyCode.", ""), "UserInputType.", "") or "None";
-	
-						Keybind.Value = TextToDisplay;
-						KeyButton.Object.Text = TextToDisplay;
+						local keyStr = tostring(Key)
+						if keyStr:find("KeyCode.Unknown") or keyStr:find("UserInputType.None") then
+							Keybind.Key = "None"
+							Keybind.Value = "None"
+							KeyButton.Object.Text = "None"
+						else
+							Keybind.Key = keyStr
+							local realName = (typeof(Key) == "EnumItem" and Key.Name == "Backspace") and "None" or (typeof(Key) == "EnumItem" and Key.Name or tostring(Key))
+							local KeyString = Keys[Keybind.Key] or StringGSub(realName, "Enum.", "")
+							local TextToDisplay = StringGSub(StringGSub(KeyString, "KeyCode.", ""), "UserInputType.", "") or "None"
+							if TextToDisplay == "Unknown" or TextToDisplay == "None" then
+								TextToDisplay = "None"
+								Keybind.Key = "None"
+							end
+							Keybind.Value = TextToDisplay
+							KeyButton.Object.Text = TextToDisplay
+						end
 
 						Library.Flags[Keybind.Flag] = {
 							Key = Keybind.Key,
@@ -3212,13 +3225,32 @@ local Library; do
 
 						Update();
 					elseif type(Key) == "table" then 
-						local RealKey = Key.Key == "Backspace" and "None" or Key.Key;
-						Keybind.Key = tostring(Key.Key);
+						local rawKey = Key.Key
+						local rawKeyStr = tostring(rawKey)
+						if not rawKey or rawKey == "Backspace" or rawKey == "None" or rawKey == "Unknown" or rawKeyStr:find("KeyCode.Unknown") or rawKeyStr:find("UserInputType.None") or rawKey == Enum.KeyCode.Unknown then
+							Keybind.Key = "None"
+							Keybind.Value = "None"
+							KeyButton.Object.Text = "None"
+						else
+							Keybind.Key = rawKeyStr
+							local KeyString = Keys[Keybind.Key] or string.gsub(tostring(rawKey), "Enum.", "") or tostring(rawKey)
+							local TextToDisplay = string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "")
+							if TextToDisplay == "Unknown" or TextToDisplay == "None" then
+								TextToDisplay = "None"
+								Keybind.Key = "None"
+							end
+							Keybind.Value = TextToDisplay
+							KeyButton.Object.Text = TextToDisplay
+						end
+
+						if Key.Toggled ~= nil then
+							Keybind.Toggled = Key.Toggled
+						end
 
 						if Key.Mode then
 							Keybind:SetMode(Key.Mode);
 						else
-							Keybind:SetMode("Toggle");
+							Keybind:SetMode(Keybind.Mode or "Toggle");
 						end;
 
 						Library.Flags[Keybind.Flag] = {
@@ -3227,20 +3259,21 @@ local Library; do
 							Toggled = Keybind.Toggled
 						}
 	
-						local KeyString = Keys[Keybind.Key] or string.gsub(tostring(RealKey), "Enum.", "") or RealKey;
-						local TextToDisplay = KeyString and string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "") or "None";
-	
-						TextToDisplay = string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "")
-						if TextToDisplay == "Unknown" then TextToDisplay = "None" end
-	
-						Keybind.Value = TextToDisplay;
-						KeyButton.Object.Text = TextToDisplay;
-	
 						if Keybind.Callback then 
 							Keybind.Callback(Keybind.Toggled);
 						end;
 
 						Update();
+					elseif Key == "None" or Key == nil or Key == "" or Key == "Unknown" then
+						Keybind.Key = "None"
+						Keybind.Value = "None"
+						KeyButton.Object.Text = "None"
+						Library.Flags[Keybind.Flag] = {
+							Key = Keybind.Key,
+							Mode = Keybind.Mode,
+							Toggled = Keybind.Toggled
+						}
+						Update()
 					end;
 	
 					Keybind.Picking = false;
@@ -3253,8 +3286,10 @@ local Library; do
 				function Keybind:SetMode(Mode)
 					Keybind.Mode = Mode;
 	
+					local isBound = Keybind.Value and Keybind.Value ~= "None" and Keybind.Value ~= "Unknown" and Keybind.Value ~= "" and Keybind.Key ~= "None" and Keybind.Key ~= "Enum.KeyCode.Unknown" and Keybind.Key ~= tostring(Enum.KeyCode.Unknown) and Keybind.Key ~= nil
+
 					if Keybind.Mode == "Always" then 
-						Keybind.Toggled = true;
+						Keybind.Toggled = isBound and true or false;
 					end;
 	
 					for Index, Value in pairs(Modes) do 
@@ -3285,6 +3320,9 @@ local Library; do
 				end;
 	
 				function Keybind:Press(Bool)
+					local isBound = Keybind.Value and Keybind.Value ~= "None" and Keybind.Value ~= "Unknown" and Keybind.Value ~= "" and Keybind.Key ~= "None" and Keybind.Key ~= "Enum.KeyCode.Unknown" and Keybind.Key ~= tostring(Enum.KeyCode.Unknown) and Keybind.Key ~= nil
+					if not isBound then return end
+
 					if Keybind.Mode == "Toggle" then
 						Keybind.Toggled = not Keybind.Toggled;
 					elseif Keybind.Mode == "Hold" then
@@ -3375,17 +3413,28 @@ local Library; do
 				Library:Connect(UserInputService.InputBegan, function(Input, processed)
 					if processed then return end;
 					if Keybind.Picking then return end;
-					-- Ignore standard mouse clicks or focus inputs
+					if not Keybind.Key or Keybind.Key == "None" or Keybind.Key == "nil" or Keybind.Key == "" or Keybind.Key == "Enum.KeyCode.Unknown" or Keybind.Key == tostring(Enum.KeyCode.Unknown) or Keybind.Key == Enum.KeyCode.Unknown then
+						return
+					end;
+					if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.None then
+						return
+					end;
 					if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.MouseButton2 or Input.UserInputType == Enum.UserInputType.MouseButton3 or Input.UserInputType == Enum.UserInputType.Touch or Input.UserInputType == Enum.UserInputType.Focus then
 						return
 					end;
-					if tostring(Input.KeyCode) == Keybind.Key or tostring(Input.UserInputType) == Keybind.Key then
+					if tostring(Input.KeyCode) == tostring(Keybind.Key) or tostring(Input.UserInputType) == tostring(Keybind.Key) then
 						Keybind:Press(true);
 					end;
 				end);
 	
 				Library:Connect(UserInputService.InputEnded, function(Input)
-					if tostring(Input.KeyCode) == Keybind.Key or tostring(Input.UserInputType) == Keybind.Key then
+					if not Keybind.Key or Keybind.Key == "None" or Keybind.Key == "nil" or Keybind.Key == "" or Keybind.Key == "Enum.KeyCode.Unknown" or Keybind.Key == tostring(Enum.KeyCode.Unknown) or Keybind.Key == Enum.KeyCode.Unknown then
+						return
+					end;
+					if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.None then
+						return
+					end;
+					if tostring(Input.KeyCode) == tostring(Keybind.Key) or tostring(Input.UserInputType) == tostring(Keybind.Key) then
 						if Keybind.Mode == "Hold" then
 							Keybind:Press(false);
 						end;
@@ -4244,19 +4293,23 @@ local Library; do
 
 				Name = Data.Name or 'Keybind',
 				Flag = Data.Flag or Library:NextFlag(),
-				Default = Data.Default or Enum.KeyCode.F;
+				Default = Data.Default or Enum.KeyCode.Unknown;
 				Callback = Data.Callback or function() end;
 				Mode = Data.Mode or "Toggle";
 				ToolTip = Data.Tooltip or Data.tooltip,
 				Picking = false;
-				Key = nil;
-				Value = "";
+				Key = "None";
+				Value = "None";
 				Toggled = false;
 				Open = false;
 				Class = "Keybind";
 			};
 			
-			Library.Flags[Keybind.Flag] = { };
+			Library.Flags[Keybind.Flag] = { 
+				Key = "None",
+				Mode = Keybind.Mode,
+				Toggled = false
+			};
 
 			local NewKeybind = Objects:New("Frame", {
 				Parent = Keybind.Section.Elements.Content,
@@ -4297,7 +4350,7 @@ local Library; do
 				FontFace = UIFont,
 				TextColor3 = Library.Theme.Text,
 				BorderColor3 = FromRGB(0, 0, 0),
-				Text = "MB2",
+				Text = "None",
 				AutoButtonColor = false,
 				AnchorPoint = V2New(1, 0),
 				Size = U2New(0, 28, 1, 0),
@@ -4363,7 +4416,7 @@ local Library; do
 				BorderSizePixel = 0,
 				TextSize = 13,
 				BackgroundColor3 = FromRGB(255, 255, 255)
-			}); Library:AddToTheme(HoldMode.Object, {TextColor3 = "Text"});
+			});	Library:AddToTheme(HoldMode.Object, {TextColor3 = "Text"});
 
 			HoldMode:TextBorder();
 
@@ -4393,30 +4446,40 @@ local Library; do
 
 			local Update = function()
 				if not KeybindListItem then return end;
+				local isBound = Keybind.Value and Keybind.Value ~= "None" and Keybind.Value ~= "Unknown" and Keybind.Value ~= "" and Keybind.Key ~= "None" and Keybind.Key ~= "Enum.KeyCode.Unknown" and Keybind.Key ~= tostring(Enum.KeyCode.Unknown) and Keybind.Key ~= nil
 				KeybindListItem:Set(Keybind.Name, Keybind.Value or "None", Keybind.Mode or "None");
-				KeybindListItem:SetStatus(Keybind.Toggled);
+				KeybindListItem:SetStatus(isBound and Keybind.Toggled == true);
 			end;
 
 			function Keybind:Set(Key)
 				if tostring(Key):find("Enum") then
-					Keybind.Key = Key;
-					Key = Key.Name == "Backspace" and "None" or Key.Name;
-
-					local KeyString = Keys[Keybind.Key] or StringGSub(Key, "Enum.", "");
-					local TextToDisplay = StringGSub(StringGSub(KeyString, "KeyCode.", ""), "UserInputType.", "") or "None";
-
-					Keybind.Value = TextToDisplay;
-					KeyButton.Object.Text = TextToDisplay;
-
-					if Keybind.Callback then 
-						Keybind.Callback(Keybind.Toggled);
-					end;
+					local keyStr = tostring(Key)
+					if keyStr:find("KeyCode.Unknown") or keyStr:find("UserInputType.None") then
+						Keybind.Key = "None"
+						Keybind.Value = "None"
+						KeyButton.Object.Text = "None"
+					else
+						Keybind.Key = keyStr
+						local realName = (typeof(Key) == "EnumItem" and Key.Name == "Backspace") and "None" or (typeof(Key) == "EnumItem" and Key.Name or tostring(Key))
+						local KeyString = Keys[Keybind.Key] or StringGSub(realName, "Enum.", "")
+						local TextToDisplay = StringGSub(StringGSub(KeyString, "KeyCode.", ""), "UserInputType.", "") or "None"
+						if TextToDisplay == "Unknown" or TextToDisplay == "None" then
+							TextToDisplay = "None"
+							Keybind.Key = "None"
+						end
+						Keybind.Value = TextToDisplay
+						KeyButton.Object.Text = TextToDisplay
+					end
 
 					Library.Flags[Keybind.Flag] = { 
 						Key = Keybind.Key,
 						Mode = Keybind.Mode,
 						Toggled = Keybind.Toggled
 					};
+
+					if Keybind.Callback then 
+						Keybind.Callback(Keybind.Toggled);
+					end;
 
 					Update();
 				elseif TableFind({"Toggle", "Hold", "Always"}, Key) then
@@ -4428,13 +4491,32 @@ local Library; do
 
 					Update();
 				elseif type(Key) == "table" then 
-					local RealKey = Key.Key == "Backspace" and "None" or Key.Key;
-					Keybind.Key = Key.Key;
+					local rawKey = Key.Key
+					local rawKeyStr = tostring(rawKey)
+					if not rawKey or rawKey == "Backspace" or rawKey == "None" or rawKey == "Unknown" or rawKeyStr:find("KeyCode.Unknown") or rawKeyStr:find("UserInputType.None") or rawKey == Enum.KeyCode.Unknown then
+						Keybind.Key = "None"
+						Keybind.Value = "None"
+						KeyButton.Object.Text = "None"
+					else
+						Keybind.Key = rawKeyStr
+						local KeyString = Keys[Keybind.Key] or string.gsub(tostring(rawKey), "Enum.", "") or tostring(rawKey)
+						local TextToDisplay = string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "")
+						if TextToDisplay == "Unknown" or TextToDisplay == "None" then
+							TextToDisplay = "None"
+							Keybind.Key = "None"
+						end
+						Keybind.Value = TextToDisplay
+						KeyButton.Object.Text = TextToDisplay
+					end
+
+					if Key.Toggled ~= nil then
+						Keybind.Toggled = Key.Toggled
+					end
 
 					if Key.Mode then
 						Keybind:SetMode(Key.Mode);
 					else
-						Keybind:SetMode("Toggle");
+						Keybind:SetMode(Keybind.Mode or "Toggle");
 					end;
 
 					Library.Flags[Keybind.Flag] = { 
@@ -4443,17 +4525,21 @@ local Library; do
 						Toggled = Keybind.Toggled
 					};
 
-                    local KeyString = Keys[Keybind.Key] or string.gsub(tostring(RealKey), "Enum.", "") or RealKey;                    TextToDisplay = string.gsub(string.gsub(KeyString, "KeyCode.", ""), "UserInputType.", "")
-                    if TextToDisplay == "Unknown" then TextToDisplay = "None" end
-	
-					Keybind.Value = TextToDisplay;
-					KeyButton.Object.Text = TextToDisplay;
-
 					if Keybind.Callback then 
 						Keybind.Callback(Keybind.Toggled);
 					end;
 
 					Update();
+				elseif Key == "None" or Key == nil or Key == "" or Key == "Unknown" then
+					Keybind.Key = "None"
+					Keybind.Value = "None"
+					KeyButton.Object.Text = "None"
+					Library.Flags[Keybind.Flag] = {
+						Key = Keybind.Key,
+						Mode = Keybind.Mode,
+						Toggled = Keybind.Toggled
+					}
+					Update()
 				end;
 
 				Keybind.Picking = false;
@@ -4466,8 +4552,10 @@ local Library; do
 			function Keybind:SetMode(Mode)
 				Keybind.Mode = Mode;
 
+				local isBound = Keybind.Value and Keybind.Value ~= "None" and Keybind.Value ~= "Unknown" and Keybind.Value ~= "" and Keybind.Key ~= "None" and Keybind.Key ~= "Enum.KeyCode.Unknown" and Keybind.Key ~= tostring(Enum.KeyCode.Unknown) and Keybind.Key ~= nil
+
 				if Keybind.Mode == "Always" then 
-					Keybind.Toggled = true;
+					Keybind.Toggled = isBound and true or false;
 				end;
 
 				for Index, Value in pairs(Modes) do 
@@ -4498,6 +4586,9 @@ local Library; do
 			end;
 
 			function Keybind:Press(Bool)
+				local isBound = Keybind.Value and Keybind.Value ~= "None" and Keybind.Value ~= "Unknown" and Keybind.Value ~= "" and Keybind.Key ~= "None" and Keybind.Key ~= "Enum.KeyCode.Unknown" and Keybind.Key ~= tostring(Enum.KeyCode.Unknown) and Keybind.Key ~= nil
+				if not isBound then return end
+
 				if Keybind.Mode == "Toggle" then
 					Keybind.Toggled = not Keybind.Toggled;
 				elseif Keybind.Mode == "Hold" then
@@ -4544,17 +4635,28 @@ local Library; do
 			Library:Connect(UserInputService.InputBegan, function(Input, processed)
 				if processed then return end;
 				if Keybind.Picking then return end;
-				-- Ignore standard mouse clicks or focus inputs
+				if not Keybind.Key or Keybind.Key == "None" or Keybind.Key == "nil" or Keybind.Key == "" or Keybind.Key == "Enum.KeyCode.Unknown" or Keybind.Key == tostring(Enum.KeyCode.Unknown) or Keybind.Key == Enum.KeyCode.Unknown then
+					return
+				end;
+				if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.None then
+					return
+				end;
 				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.MouseButton2 or Input.UserInputType == Enum.UserInputType.MouseButton3 or Input.UserInputType == Enum.UserInputType.Touch or Input.UserInputType == Enum.UserInputType.Focus then
 					return
 				end;
-				if tostring(Input.KeyCode) == Keybind.Key or tostring(Input.UserInputType) == Keybind.Key then
+				if tostring(Input.KeyCode) == tostring(Keybind.Key) or tostring(Input.UserInputType) == tostring(Keybind.Key) then
 					Keybind:Press(true);
 				end;
 			end);
 
 			Library:Connect(UserInputService.InputEnded, function(Input)
-				if Input.KeyCode == Keybind.Key or Input.UserInputType == Keybind.Key then
+				if not Keybind.Key or Keybind.Key == "None" or Keybind.Key == "nil" or Keybind.Key == "" or Keybind.Key == "Enum.KeyCode.Unknown" or Keybind.Key == tostring(Enum.KeyCode.Unknown) or Keybind.Key == Enum.KeyCode.Unknown then
+					return
+				end;
+				if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.None then
+					return
+				end;
+				if tostring(Input.KeyCode) == tostring(Keybind.Key) or tostring(Input.UserInputType) == tostring(Keybind.Key) then
 					if Keybind.Mode == "Hold" then
 						Keybind:Press(false);
 					end;
