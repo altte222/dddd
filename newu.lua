@@ -5751,10 +5751,19 @@ local Library do
             end
         end
         
-        function Playerlist:UpdatePlayerTags(PlayerName, tagsString)
+        function Playerlist:UpdatePlayerTags(PlayerName, tagsString, isAlternate)
             local pData = self.Players[PlayerName]
             if pData then
                 pData.PlayerName.Instance.Text = pData.Player.Name .. (tagsString ~= "" and (" " .. tagsString) or "")
+                if isAlternate ~= nil then
+                    if isAlternate then
+                        pData.PlayerStatus.Instance.Text = "Alternate"
+                        pData.PlayerStatus.Instance.TextColor3 = Color3.fromRGB(80, 255, 80)
+                    elseif pData.Player ~= LocalPlayer then
+                        pData.PlayerStatus.Instance.Text = "Neutral"
+                        pData.PlayerStatus.Instance.TextColor3 = Color3.fromRGB(235, 235, 235)
+                    end
+                end
             end
         end
 
