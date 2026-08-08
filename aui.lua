@@ -3956,15 +3956,17 @@ local Library; do
 
 			PlusIcon:TextBorder();
 			
-			local OptionHolder = Objects:New("Frame", {
+			local OptionHolder = Objects:New("ScrollingFrame", {
 				Parent = NewDropdown.Object,
 				Visible = false,
 				BorderColor3 = FromRGB(0, 0, 0),
 				Name = "OptionHolder",
 				Position = U2New(0, 0, 1, 5),
-				Size = U2New(1, 0, 0, 15),
+				Size = U2New(1, 0, 0, 120),
 				BorderSizePixel = 0,
-				AutomaticSize = Enum.AutomaticSize.Y,
+				AutomaticCanvasSize = Enum.AutomaticSize.Y,
+				CanvasSize = U2New(0, 0, 0, 0),
+				ScrollBarThickness = 2,
 				BackgroundColor3 = Library.Theme.Inline
 			});	Library:AddToTheme(OptionHolder.Object, {BackgroundColor3 = "Inline"});
 
