@@ -1899,13 +1899,13 @@ local Library do
 
                 function NewButton:Press()
                     SubItems["NewButton"]:ChangeItemTheme({BackgroundColor3 = "Accent", BorderColor3 = "Border"})
-                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Accent})
+                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = (Library and Library.Theme and Library.Theme.Accent) or FromRGB(255,255,255)})
 
                     Library:SafeCall(Callback)
                     task.wait(0.1)
 
                     SubItems["NewButton"]:ChangeItemTheme({BackgroundColor3 = "Element", BorderColor3 = "Border"})
-                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
+                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = (Library and Library.Theme and Library.Theme.Element) or FromRGB(22,22,22)})
                 end
 
                 function NewButton:SetVisibility(Bool)
@@ -1925,12 +1925,12 @@ local Library do
 
                 SubItems["NewButton"]:OnHover(function()
                     SubItems["NewButton"]:ChangeItemTheme({BackgroundColor3 = "Hovered Element", BorderColor3 = "Border"})
-                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = Library.Theme["Hovered Element"]})
+                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = (Library and Library.Theme and Library.Theme["Hovered Element"]) or FromRGB(40,40,40)})
                 end)
 
                 SubItems["NewButton"]:OnHoverLeave(function()
                     SubItems["NewButton"]:ChangeItemTheme({BackgroundColor3 = "Element", BorderColor3 = "Border"})
-                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
+                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = (Library and Library.Theme and Library.Theme.Element) or FromRGB(22,22,22)})
                 end)
 
                 SubItems["NewButton"]:Connect("MouseButton1Down", function()
@@ -5647,9 +5647,9 @@ local Library do
             })  PlayerItems["Liner"]:AddToTheme({BackgroundColor3 = "Outline"})
 
             if Player == LocalPlayer then
-                PlayerItems["Status"].Instance.TextColor3 = Library.Theme.Accent
-                PlayerItems["Status"].Instance.Text = "LocalPlayer"
-                PlayerItems["Status"]:AddToTheme({TextColor3 = "Accent"})
+                PlayerItems["Status"].Instance.TextColor3 = Color3.fromRGB(255, 100, 100)
+                PlayerItems["Status"].Instance.Text = "SELF"
+                PlayerItems["Name"].Instance.TextColor3 = Color3.fromRGB(255, 100, 100)
             end
 
             local PlayerData = {
