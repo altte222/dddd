@@ -4852,6 +4852,10 @@ local Library do
             Items["Watermark"].Instance.Visible = Bool
         end
 
+        function Watermark:SetText(Text)
+            Items["Text"].Instance.Text = Text
+        end
+
         return Watermark
     end
 
@@ -5160,62 +5164,7 @@ local Library do
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["Logo"]:AddToTheme({ImageColor3 = "Accent"})
 
-            Items["Search"] = Instances:Create("Frame", {
-                Parent = Items["Side"].Instance,
-                Name = "\0",
-                BorderColor3 = FromRGB(12, 12, 12),
-                AnchorPoint = Vector2New(0, 1),
-                BackgroundTransparency = 0.4000000059604645,
-                Position = UDim2New(0, 6, 1, -6),
-                Size = UDim2New(0, 0, 0, 20),
-                BorderSizePixel = 2,
-                AutomaticSize = Enum.AutomaticSize.X,
-                BackgroundColor3 = FromRGB(14, 17, 15)
-            })  Items["Search"]:AddToTheme({BackgroundColor3 = "Background", BorderColor3 = "Border"})
 
-            Items["SearchStroke"] = Items["Search"]:Border("Outline")
-
-            Items["Icon"] = Instances:Create("ImageLabel", {
-                Parent = Items["Search"].Instance,
-                Name = "\0",
-                ScaleType = Enum.ScaleType.Fit,
-                BorderColor3 = FromRGB(0, 0, 0),
-                AnchorPoint = Vector2New(0, 0.5),
-                Image = "rbxassetid://71197946135150",
-                BackgroundTransparency = 1,
-                Position = UDim2New(0, 0, 0.5, 0),
-                Size = UDim2New(0, 16, 0, 16),
-                BorderSizePixel = 0,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })
-
-            Items["Input"] = Instances:Create("TextBox", {
-                Parent = Items["Search"].Instance,
-                Name = "\0",
-                FontFace = Library.Font,
-                CursorPosition = -1,
-                TextColor3 = FromRGB(235, 235, 235),
-                BorderColor3 = FromRGB(0, 0, 0),
-                Text = "",
-                Size = UDim2New(0, 0, 1, 0),
-                Position = UDim2New(0, 22, 0, 0),
-                BorderSizePixel = 0,
-                BackgroundTransparency = 1,
-                PlaceholderColor3 = FromRGB(185, 185, 185),
-                AutomaticSize = Enum.AutomaticSize.X,
-                PlaceholderText = "..",
-                TextSize = 9,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["Input"]:AddToTheme({TextColor3 = "Text", PlaceholderColor3 = "Placeholder Text"})
-
-            Items["Input"]:TextBorder()
-
-            Instances:Create("UIPadding", {
-                Parent = Items["Search"].Instance,
-                Name = "\0",
-                PaddingRight = UDimNew(0, 5),
-                PaddingLeft = UDimNew(0, 3)
-            })
 
             Items["Pages"] = Instances:Create("Frame", {
                 Parent = Items["Side"].Instance,
@@ -5248,10 +5197,10 @@ local Library do
                 Parent = Items["Side"].Instance,
                 Name = "\0",
                 BorderColor3 = FromRGB(0, 0, 0),
-                AnchorPoint = Vector2New(1, 1),
+                AnchorPoint = Vector2New(0, 1), -- Anchor left
                 Image = Content,
                 BackgroundTransparency = 1,
-                Position = UDim2New(1, -6, 1, -6),
+                Position = UDim2New(0, 6, 1, -6), -- Position left
                 Size = UDim2New(0, 25, 0, 25),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(255, 255, 255)
@@ -5406,45 +5355,9 @@ local Library do
             end
         end)
 
-        local SearchStepped
 
-        Items["Input"]:Connect("Focused", function()
-            local PageSearchData = Library.SearchItems[Library.CurrentPage]
 
-            if not PageSearchData then
-                return 
-            end
-
-            SearchStepped = RunService.RenderStepped:Connect(function()
-                for Index, Value in PageSearchData do 
-                    local Name = Value.Name
-                    local Element = Value.Element
-
-                    if StringFind(StringLower(Name), StringLower(Items["Input"].Instance.Text)) then
-                        if Items["Input"].Instance.Text ~= "" then 
-                            Element.Instance.Visible  = true 
-                            Element:Tween(TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = Window:GetOldSize(Element)})
-                        else
-                            Element.Instance.Visible  = true 
-                            Element:Tween(TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = Window:GetOldSize(Element)})
-                        end
-                    else
-                        Window:AddToOldSizes(Element, Element.Instance.Size)
-                        Element:Tween(TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2New(Window:GetOldSize(Element).X.Scale, Window:GetOldSize(Element).X.Offset, 0, 0)})
-                        task.wait(0.1)
-                        Element.Instance.Visible = false
-                    end
-                end
-            end)
-        end)
-
-        Items["Input"]:Connect("FocusLost", function()
-            if SearchStepped then 
-                SearchStepped:Disconnect()
-                SearchStepped = nil
-            end
-        end)
-
+        Window.Avatar = Items["Avatar"]
         Window:SetOpen(true)
         return setmetatable(Window, self)
     end
@@ -5696,6 +5609,9 @@ local Library do
             
             btn.Instance.MouseButton1Down:Connect(function()
                 if Playerlist.Player then
+                    if Playerlist.Player == game.Players.LocalPlayer then
+                        return -- Do not work on self
+                    end
                     if Data.Callback then
                         Library:SafeCall(Data.Callback, Playerlist.Player, name)
                     end
@@ -6628,5 +6544,6 @@ end
 
 getgenv().Library = Library
 return Library
+
 
 
