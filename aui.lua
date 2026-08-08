@@ -5154,7 +5154,8 @@ local Library do
                 Image = "rbxassetid://" .. Window.Logo,
                 BackgroundTransparency = 1,
                 Position = UDim2New(0.5, 0, 0, 12),
-                Size = UDim2New(0, 75, 0, 75),
+                Size = UDim2New(0, 0, 0, 0), -- Removed logo icon size
+                Visible = false, -- Hide logo
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["Logo"]:AddToTheme({ImageColor3 = "Accent"})
@@ -5220,9 +5221,9 @@ local Library do
                 Parent = Items["Side"].Instance,
                 Name = "\0",
                 BackgroundTransparency = 1,
-                Position = UDim2New(0, 0, 0, 100),
+                Position = UDim2New(0, 0, 0, 12), -- Moved up to replace logo space
                 BorderColor3 = FromRGB(0, 0, 0),
-                Size = UDim2New(1, 0, 1, -135),
+                Size = UDim2New(1, 0, 1, -47), -- Increased height accordingly
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })
@@ -5655,39 +5656,52 @@ local Library do
             Items["PlayerUsername"]:TextBorder()
         end
 
-        local Dropdown, DropdownItems = Components:Dropdown({
-            Parent = Items["Playerlist"],
-            Name = "Status",
-            Flag = "PlayerlistStatus",
-            Items = { "Neutral", "Priority", "Friendly" },
-            Default = "Neutral",
-            Multi = false,
-            Callback = function(Value)
+        Playerlist.Buttons = {}
+        
+        local ActionsFrame = Instances:Create("Frame", {
+            Parent = Items["Playerlist"].Instance,
+            Name = "ActionsFrame",
+            AnchorPoint = Vector2New(1, 1),
+            Position = UDim2New(1, -8, 1, -8),
+            Size = UDim2New(0, 252, 0, 48),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+        })
+        
+        local Grid = Instances:Create("UIGridLayout", {
+            Parent = ActionsFrame.Instance,
+            CellSize = UDim2New(0, 59, 0, 20),
+            CellPadding = UDim2New(0, 4, 0, 4),
+            SortOrder = Enum.SortOrder.LayoutOrder
+        })
+        
+        local actionNames = {"Target", "Whitelist", "Spectate", "Teleport", "Ignore Wall", "Ignore Dead", "Ignore Team"}
+        for i, name in ipairs(actionNames) do
+            local btn = Instances:Create("TextButton", {
+                Parent = ActionsFrame.Instance,
+                Name = name,
+                FontFace = Library.Font,
+                TextColor3 = Library.Theme.Text,
+                Text = name,
+                AutoButtonColor = false,
+                Size = UDim2New(0, 59, 0, 20),
+                BorderSizePixel = 0,
+                BackgroundColor3 = Library.Theme.Element,
+                TextSize = 8,
+            })
+            btn:AddToTheme({BackgroundColor3 = "Element", TextColor3 = "Text"})
+            btn:TextBorder()
+            
+            Playerlist.Buttons[name] = btn
+            
+            btn.Instance.MouseButton1Down:Connect(function()
                 if Playerlist.Player then
-                    if Playerlist.Player == LocalPlayer then
-                        return
-                    end
-
-                    if Value == "Neutral" then
-                        Playerlist.Players[Playerlist.Player.Name].PlayerStatus:Tween(nil, {TextColor3 = Library.Theme["Text"]})
-                        Playerlist.Players[Playerlist.Player.Name].PlayerStatus.Instance.Text = "Neutral"
-                    elseif Value == "Priority" then
-                        Playerlist.Players[Playerlist.Player.Name].PlayerStatus:Tween(nil, {TextColor3 = FromRGB(235, 76, 48)})
-                        Playerlist.Players[Playerlist.Player.Name].PlayerStatus.Instance.Text = "Priority"
-                    elseif Value == "Friendly" then
-                        Playerlist.Players[Playerlist.Player.Name].PlayerStatus:Tween(nil, {TextColor3 = FromRGB(134, 235, 56)})
-                        Playerlist.Players[Playerlist.Player.Name].PlayerStatus.Instance.Text = "Friendly"
-                    else
-                        Playerlist.Players[Playerlist.Player.Name].PlayerStatus:Tween(nil, {TextColor3 = Library.Theme["Text"]})
-                        Playerlist.Players[Playerlist.Player.Name].PlayerStatus.Instance.Text = "Neutral"
+                    if Data.Callback then
+                        Library:SafeCall(Data.Callback, Playerlist.Player, name)
                     end
                 end
-            end
-        })
-
-        DropdownItems["Dropdown"].Instance.AnchorPoint = Vector2New(1, 1)
-        DropdownItems["Dropdown"].Instance.Position = UDim2New(1, -8, 1, -25)
-        DropdownItems["Dropdown"].Instance.Size = UDim2New(0, 200, 0, 40)
+            end)
+        end
 
         function Playerlist:Add(Player)
             local PlayerItems = { }
@@ -5856,6 +5870,26 @@ local Library do
         Library:Connect(Players.PlayerAdded, function(Player)
             Playerlist:Add(Player)
         end)
+
+        function Playerlist:SetButtonState(actionName, state)
+            local btn = self.Buttons[actionName]
+            if btn then
+                if state then
+                    btn.Instance.BackgroundColor3 = Library.Theme.Accent
+                    btn.Instance.TextColor3 = Library.Theme.Background
+                else
+                    btn.Instance.BackgroundColor3 = Library.Theme.Element
+                    btn.Instance.TextColor3 = Library.Theme.Text
+                end
+            end
+        end
+        
+        function Playerlist:UpdatePlayerTags(PlayerName, tagsString)
+            local pData = self.Players[PlayerName]
+            if pData then
+                pData.PlayerName.Instance.Text = pData.Player.Name .. (tagsString ~= "" and (" " .. tagsString) or "")
+            end
+        end
 
         return Playerlist
     end
@@ -6594,4 +6628,5 @@ end
 
 getgenv().Library = Library
 return Library
+
 
