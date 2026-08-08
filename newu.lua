@@ -79,9 +79,9 @@ local Library do
         FadeSpeed = 0.2,
 
         Folders = {
-            Directory = "scoot",
-            Configs = "scoot/Configs",
-            Assets = "scoot/Assets",
+            Directory = "alternate",
+            Configs = "alternate/Configs",
+            Assets = "alternate/Assets",
         },
 
         Images = {
@@ -402,7 +402,7 @@ local Library do
         end
 
         Instances.AddToTheme = function(self, Properties)
-            if not self.Instance then 
+            if not self.Instance or not Library then 
                 return
             end
 
@@ -410,7 +410,7 @@ local Library do
         end
 
         Instances.ChangeItemTheme = function(self, Properties)
-            if not self.Instance then 
+            if not self.Instance or not Library then 
                 return
             end
 
@@ -418,7 +418,7 @@ local Library do
         end
 
         Instances.Connect = function(self, Event, Callback, Name)
-            if not self.Instance then 
+            if not self.Instance or not Library then 
                 return
             end
 
@@ -5690,18 +5690,21 @@ local Library do
                     Items["PlayerUsername"].Instance.Text = Playerlist.Player.DisplayName .. " (@" .. Playerlist.Player.Name .. ")"
                     Items["PlayerUserID"].Instance.Text = tostring(Playerlist.Player.UserId)
                     Items["PlayerAccountAge"].Instance.Text = tostring(Playerlist.Player.AccountAge) .. " days old"
+                    
+                    if Data.Callback then 
+                        Library:SafeCall(Data.Callback, Playerlist.Player, "Select")
+                    end
                 else
-                    --print("this shit rigged")
                     Playerlist.Player = nil
                     PlayerData:Toggle("Inactive")
                     Items["PlayerAvatar"].Instance.Image = "rbxassetid://98200387761744"
                     Items["PlayerUsername"].Instance.Text = "None"
                     Items["PlayerUserID"].Instance.Text = "None"
                     Items["PlayerAccountAge"].Instance.Text = "None"
-                end
-
-                if Data.Callback then 
-                    Library:SafeCall(Data.Callback, Playerlist.Player, PlayerData.PlayerStatus.Instance.Text, PlayerData.PlayerTeam.Instance.Text)
+                    
+                    if Data.Callback then 
+                        Library:SafeCall(Data.Callback, nil, "Deselect")
+                    end
                 end
             end
 
