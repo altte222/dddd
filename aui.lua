@@ -6,16 +6,15 @@
     example/documentation is at the bottom
 ]]
 
-if Library then
-    Library:Unload()
+-- Safe unload check - only unload if Library is fully initialized
+if getgenv().UnloadAlternate then
+    pcall(getgenv().UnloadAlternate)
+elseif getgenv().Library and getgenv().Library.Unload then
+    pcall(getgenv().Library.Unload, getgenv().Library)
 end
 
 -- Declare globals for compiler
 local LPH_OBFUSCATED = LPH_OBFUSCATED or false
-local LPH_NO_VIRTUALIZE = LPH_NO_VIRTUALIZE or function(f) return f end
-local LPH_JIT = LPH_JIT or function(f) return f end
-local LPH_JIT_MAX = LPH_JIT_MAX or function(f) return f end
-
 if not LPH_OBFUSCATED then
     getgenv()["LPH_NO_" .. "VIRTUALIZE"] = function(f) return f end
     getgenv()["LPH_J" .. "IT"] = function(f) return f end
@@ -836,6 +835,11 @@ local Library do
 
     Library.Unload = function(self)
         if not self then return end
+
+        if getgenv()._AlternateCleanup then
+            pcall(getgenv()._AlternateCleanup)
+            getgenv()._AlternateCleanup = nil
+        end
 
         -- Destroy UI holders
         if self.Holder and self.Holder.Instance then
@@ -4640,7 +4644,7 @@ local Library do
                     Size = UDim2New(1, -12, 1, -10),
                     Position = UDim2New(0, 3, 0, 5),
                     TopImage = "rbxassetid://136419474381965",
-                    CanvasPosition = Vector2New(0, 57),
+                    CanvasPosition = Vector2New(0, 0),
                     BottomImage = "rbxassetid://136419474381965",
                     BackgroundTransparency = 1,
                     BackgroundColor3 = FromRGB(255, 255, 255)
@@ -5040,7 +5044,7 @@ local Library do
             if activeCount == 0 then
                 Items["KeybindList"].Instance.Visible = false
             else
-                if Library.Flags["Keybind list"] ~= false then
+                if Library.Flags["KeybindList"] ~= false then
                     Items["KeybindList"].Instance.Visible = true
                 end
                 local height = 32 + (activeCount * 15) + ((activeCount - 1) * 2) + 16
@@ -6441,7 +6445,7 @@ local Library do
     end
 
     Library.CreateSettingsPage = function(self, Window, Watermark, KeybindList)
-        local SettingsPage = Window:Page({Name = "Settings", Columns = 2}) do 
+        local SettingsPage = Window:Page({Name = "UI Settings", Columns = 2}) do 
             local ConfigsSection = SettingsPage:Section({Name = "Configs", Side = 1}) do
                 local ConfigName
                 local ConfigSelected
