@@ -15,10 +15,6 @@ end
 
 -- Declare globals for compiler
 local LPH_OBFUSCATED = LPH_OBFUSCATED or false
-local LPH_NO_VIRTUALIZE = LPH_NO_VIRTUALIZE or function(f) return f end
-local LPH_JIT = LPH_JIT or function(f) return f end
-local LPH_JIT_MAX = LPH_JIT_MAX or function(f) return f end
-
 if not LPH_OBFUSCATED then
     getgenv()["LPH_NO_" .. "VIRTUALIZE"] = function(f) return f end
     getgenv()["LPH_J" .. "IT"] = function(f) return f end
@@ -279,7 +275,10 @@ local Library do
 
         Tween.Create = function(self, Item, Info, Goal, IsRawItem)
             Item = IsRawItem and Item or Item.Instance
-            Info = Info or TweenInfo.new(Library.Tween.Time, Library.Tween.Style, Library.Tween.Direction)
+            local tweenTime = (Library and Library.Tween and Library.Tween.Time) or 0.2
+            local tweenStyle = (Library and Library.Tween and Library.Tween.Style) or Enum.EasingStyle.Quad
+            local tweenDirection = (Library and Library.Tween and Library.Tween.Direction) or Enum.EasingDirection.Out
+            Info = Info or TweenInfo.new(tweenTime, tweenStyle, tweenDirection)
 
             local NewTween = {
                 Tween = TweenService:Create(Item, Info, Goal),
@@ -733,7 +732,7 @@ local Library do
                 Items["UIStroke2"]:Tween(nil, {Transparency = 0})
                 Items["UIStroke3"]:Tween(nil, {Transparency = 0})
 
-                RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
+                RenderStepped = Library:Connect(RunService.RenderStepped, LPH_NO_VIRTUALIZE(function()
                     MouseLocation = UserInputService:GetMouseLocation()
                     Items["Tooltip"].Instance.Position = UDim2New(0, MouseLocation.X + 8, 0, MouseLocation.Y - 35)
                 end))
@@ -748,7 +747,7 @@ local Library do
                 Items["UIStroke3"]:Tween(nil, {Transparency = 1})
 
                 if RenderStepped then 
-                    RenderStepped:Disconnect()
+                    Library:Disconnect(RenderStepped.Name)
                     RenderStepped = nil
                 end
             end)
@@ -875,7 +874,7 @@ local Library do
         -- Close all active threads
         if self.Threads then
             for _, Value in pairs(self.Threads) do
-                if Value and coroutine.status(Value) ~= "dead" then
+                if Value and Value ~= coroutine.running() and coroutine.status(Value) ~= "dead" then
                     pcall(function() coroutine.close(Value) end)
                 end
             end
@@ -942,27 +941,28 @@ local Library do
     end
 
     Library.Connect = function(self, Event, Callback, Name)
-        Name = Name or StringFormat("Connection%s%s", self.UnnamedConnections + 1, HttpService:GenerateGUID(false))
+        self.UnnamedConnections = (self.UnnamedConnections or 0) + 1
+        Name = Name or StringFormat("Connection%s%s", self.UnnamedConnections, HttpService:GenerateGUID(false))
 
         local NewConnection = {
             Event = Event,
             Callback = Callback,
             Name = Name,
-            Connection = nil
+            Connection = Event:Connect(Callback)
         }
-
-        Library:Thread(function()
-            NewConnection.Connection = Event:Connect(Callback)
-        end)
 
         TableInsert(self.Connections, NewConnection)
         return NewConnection
     end
 
     Library.Disconnect = function(self, Name)
-        for _, Connection in self.Connections do 
+        for Index = #self.Connections, 1, -1 do
+            local Connection = self.Connections[Index]
             if Connection.Name == Name then
-                Connection.Connection:Disconnect()
+                if Connection.Connection and typeof(Connection.Connection.Disconnect) == "function" then
+                    Connection.Connection:Disconnect()
+                end
+                table.remove(self.Connections, Index)
                 break
             end
         end
@@ -1126,6 +1126,13 @@ local Library do
 
     Library.Lerp = function(self, Start, Finish, Time)
         return Start + (Finish - Start) * Time
+    end
+
+    -- Change the menu toggle keybind at runtime.
+    -- Pass an Enum.KeyCode or Enum.UserInputType value.
+    -- e.g. Library:SetMenuKeybind(Enum.KeyCode.RightAlt)
+    Library.SetMenuKeybind = function(self, Key)
+        Library.MenuKeybind = tostring(Key)
     end
 
     -- Components
@@ -2425,17 +2432,22 @@ local Library do
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Icon"]:AddToTheme({ImageColor3 = "Accent"})
 
-                Items["OptionHolder"] = Instances:Create("Frame", {
+                Items["OptionHolder"] = Instances:Create("ScrollingFrame", {
                     Parent = Library.UnusedHolder.Instance,
                     Name = "\0",
                     Visible = false,
                     BorderColor3 = FromRGB(12, 12, 12),
                     BorderSizePixel = 2,
                     Position = UDim2New(0, 0, 1, 8),
-                    Size = UDim2New(1, 0, 0, 25),
+                    Size = UDim2New(1, 0, 0, 97),
                     ZIndex = 5,
-                    AutomaticSize = Enum.AutomaticSize.Y,
-                    BackgroundColor3 = FromRGB(20, 24, 21)
+                    BackgroundColor3 = FromRGB(20, 24, 21),
+                    ScrollBarThickness = 5,
+                    ScrollBarImageColor3 = FromRGB(150, 150, 150),
+                    ScrollingEnabled = true,
+                    CanvasSize = UDim2New(0, 0, 0, 0),
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                    VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
                 })  Items["OptionHolder"]:AddToTheme({BackgroundColor3 = "Inline", BorderColor3 = "Border"})
 
                 Instances:Create("UIStroke", {
@@ -2461,6 +2473,15 @@ local Library do
                     Padding = UDimNew(0, 3),
                     SortOrder = Enum.SortOrder.LayoutOrder
                 })
+
+                Instances:Create("UIPadding", {
+                    Parent = Items["OptionHolder"].Instance,
+                    Name = "\0",
+                    PaddingTop = UDimNew(0, 4),
+                    PaddingBottom = UDimNew(0, 4),
+                    PaddingLeft = UDimNew(0, 4),
+                    PaddingRight = UDimNew(0, 4)
+                })
             end
 
             function Dropdown:Get()
@@ -2484,9 +2505,9 @@ local Library do
                     Items["OptionHolder"].Instance.Parent = Library.Holder.Instance
                     Items["Icon"]:Tween(nil, {Rotation = -90})
                     
-                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
+                    RenderStepped = Library:Connect(RunService.RenderStepped, LPH_NO_VIRTUALIZE(function()
                         Items["OptionHolder"].Instance.Position = UDim2New(0, Items["RealDropdown"].Instance.AbsolutePosition.X, 0, Items["RealDropdown"].Instance.AbsolutePosition.Y + Items["RealDropdown"].Instance.AbsoluteSize.Y + 5)
-                        Items["OptionHolder"].Instance.Size = UDim2New(0, Items["RealDropdown"].Instance.AbsoluteSize.X, 0, 0)
+                        Items["OptionHolder"].Instance.Size = UDim2New(0, Items["RealDropdown"].Instance.AbsoluteSize.X, 0, 97)
                     end))
 
                     if not Debounce then 
@@ -2506,7 +2527,7 @@ local Library do
                     end
 
                     if RenderStepped then 
-                        RenderStepped:Disconnect()
+                        Library:Disconnect(RenderStepped.Name)
                         RenderStepped = nil
                     end
 
@@ -3647,7 +3668,7 @@ local Library do
                     Items["ColorpickerWindow"].Instance.Visible = true
                     Items["ColorpickerWindow"].Instance.Parent = Library.Holder.Instance
                     
-                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
+                    RenderStepped = Library:Connect(RunService.RenderStepped, LPH_NO_VIRTUALIZE(function()
                         Items["ColorpickerWindow"].Instance.Position = UDim2New(0, Items["ColorpickerButton"].Instance.AbsolutePosition.X, 0, Items["ColorpickerButton"].Instance.AbsolutePosition.Y + Items["ColorpickerButton"].Instance.AbsoluteSize.Y + 5)
                     end))
 
@@ -3668,7 +3689,7 @@ local Library do
                     end
 
                     if RenderStepped then 
-                        RenderStepped:Disconnect()
+                        Library:Disconnect(RenderStepped.Name)
                         RenderStepped = nil
                     end
                 end
@@ -4098,6 +4119,11 @@ local Library do
                     Keybind.Value = TextToDisplay
                     Items["KeyButton"].Instance.Text = TextToDisplay
 
+                    -- If this keybind is marked as the menu key, keep Library.MenuKeybind in sync
+                    if Data.IsMenuKey then
+                        Library.MenuKeybind = Keybind.Key
+                    end
+
                     Library.Flags[Keybind.Flag] = {
                         Mode = Keybind.Mode,
                         Key = Keybind.Key,
@@ -4129,6 +4155,11 @@ local Library do
                     Keybind.Value = TextToDisplay
                     Items["KeyButton"].Instance.Text = TextToDisplay
 
+                    -- Sync menu keybind if flagged
+                    if Data.IsMenuKey then
+                        Library.MenuKeybind = Keybind.Key
+                    end
+
                     if Data.Callback then 
                         Library:SafeCall(Data.Callback, Keybind.Toggled)
                     end
@@ -4149,7 +4180,7 @@ local Library do
             end
 
             local Debounce = false
-            local RenderStepped  
+            local RenderSteppedConnection  
 
             function Keybind:SetOpen(Bool)
                 if Debounce then 
@@ -4164,7 +4195,7 @@ local Library do
                     Items["KeybindWindow"].Instance.Visible = true
                     Items["KeybindWindow"].Instance.Parent = Library.Holder.Instance
                     
-                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
+                    RenderSteppedConnection = Library:Connect(RunService.RenderStepped, LPH_NO_VIRTUALIZE(function()
                         Items["KeybindWindow"].Instance.Position = UDim2New(0, Items["KeyButton"].Instance.AbsolutePosition.X, 0, Items["KeyButton"].Instance.AbsolutePosition.Y + Items["KeyButton"].Instance.AbsoluteSize.Y + 5)
                     end))
 
@@ -4184,9 +4215,9 @@ local Library do
                         end
                     end
 
-                    if RenderStepped then 
-                        RenderStepped:Disconnect()
-                        RenderStepped = nil
+                    if RenderSteppedConnection then 
+                        Library:Disconnect(RenderSteppedConnection.Name)
+                        RenderSteppedConnection = nil
                     end
                 end
 
@@ -4648,7 +4679,7 @@ local Library do
                     Size = UDim2New(1, -12, 1, -10),
                     Position = UDim2New(0, 3, 0, 5),
                     TopImage = "rbxassetid://136419474381965",
-                    CanvasPosition = Vector2New(0, 57),
+                    CanvasPosition = Vector2New(0, 0),
                     BottomImage = "rbxassetid://136419474381965",
                     BackgroundTransparency = 1,
                     BackgroundColor3 = FromRGB(255, 255, 255)
@@ -4858,9 +4889,7 @@ local Library do
 
             Items["Input"]:Connect("FocusLost", function()
                 if SearchStepped then
-                    SearchStepped:Disconnect()
-                    SearchStepped = nil
-                end
+                        Library:Disconnect(SearchStepped.Name)
             end)
 
             for Index, Value in Data.Items do 
@@ -4965,9 +4994,9 @@ local Library do
                 AnchorPoint = Vector2New(0, 0.5),
                 Position = UDim2New(0, 12, 0.5, 55),
                 BorderColor3 = FromRGB(12, 12, 12),
-                Size = UDim2New(0, 116, 0, 0),
+                Size = UDim2New(0, 0, 0, 0),
                 BorderSizePixel = 2,
-                AutomaticSize = Enum.AutomaticSize.None,
+                AutomaticSize = Enum.AutomaticSize.X,
                 BackgroundColor3 = FromRGB(14, 17, 15)
             })  Items["KeybindList"]:AddToTheme({BackgroundColor3 = "Background", BorderColor3 = "Border"})
 
@@ -5024,9 +5053,9 @@ local Library do
                 BorderColor3 = FromRGB(0, 0, 0),
                 BackgroundTransparency = 1,
                 Position = UDim2New(0, 0, 0, 32),
-                Size = UDim2New(1, 0, 0, 0),
+                Size = UDim2New(0, 0, 0, 0),
                 BorderSizePixel = 0,
-                AutomaticSize = Enum.AutomaticSize.Y,
+                AutomaticSize = Enum.AutomaticSize.XY,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })
 
@@ -5048,11 +5077,13 @@ local Library do
             if activeCount == 0 then
                 Items["KeybindList"].Instance.Visible = false
             else
-                if Library.Flags["Keybind list"] ~= false then
+                if Library.Flags["KeybindList"] ~= false then
                     Items["KeybindList"].Instance.Visible = true
                 end
+                -- Only set height; X is driven by AutomaticSize so the frame
+                -- expands to fit whichever keybind label is widest.
                 local height = 32 + (activeCount * 15) + ((activeCount - 1) * 2) + 16
-                Items["KeybindList"].Instance.Size = UDim2New(0, 116, 0, height)
+                Items["KeybindList"].Instance.Size = UDim2New(0, 0, 0, height)
             end
         end
 
@@ -5369,20 +5400,6 @@ local Library do
             end
         end
 
-        local function SetGuiVisibility(Obj, State)
-            if not Obj then
-                return
-            end
-            if Obj:IsA("GuiObject") then
-                pcall(function()
-                    Obj.Visible = State
-                end)
-            end
-            for _, Child in ipairs(Obj:GetChildren()) do
-                SetGuiVisibility(Child, State)
-            end
-        end
-
         function Window:SetOpen(Bool)
             if not Items or not Items["Window"] or not Items["Window"].Instance then
                 return
@@ -5393,16 +5410,12 @@ local Library do
             end
 
             Window.IsOpen = Bool
-            local WinInstance = Items["Window"].Instance
+            -- Only toggle the top-level window frame. Children that live in
+            -- UnusedHolder (inactive pages/subpages) must NOT be touched here;
+            -- the recursive SetGuiVisibility was making those orphaned frames
+            -- visible and causing section bleed across tabs/subtabs after hide.
+            Items["Window"].Instance.Visible = Bool
 
-            SetGuiVisibility(WinInstance, Bool)
-
-            if Items["Side"] and Items["Side"].Instance then
-                SetGuiVisibility(Items["Side"].Instance, Bool)
-            end
-            if Items["Content"] and Items["Content"].Instance then
-                SetGuiVisibility(Items["Content"].Instance, Bool)
-            end
             if Items["MouseBackground"] and Items["MouseBackground"].Instance then
                 pcall(function()
                     Items["MouseBackground"].Instance.Visible = Bool
@@ -5421,7 +5434,8 @@ local Library do
         end
 
         Library:Connect(UserInputService.InputBegan, function(Input)
-            if tostring(Input.KeyCode) == Library.MenuKeybind or tostring(Input.UserInputType) == Library.MenuKeybind then
+            local menuKey = tostring(Library.MenuKeybind)
+            if tostring(Input.KeyCode) == menuKey or tostring(Input.UserInputType) == menuKey then
                 Window:SetOpen(not Window.IsOpen)
             end
         end)
@@ -6449,78 +6463,7 @@ local Library do
     end
 
     Library.CreateSettingsPage = function(self, Window, Watermark, KeybindList)
-        local SettingsPage = Window:Page({Name = "Settings", Columns = 2}) do 
-            local ConfigsSection = SettingsPage:Section({Name = "Configs", Side = 1}) do
-                local ConfigName
-                local ConfigSelected
-
-                local ConfigsSearchbox = ConfigsSection:Searchbox({
-                    Name = "SearchboxConfigs",
-                    Flag = "ConfigsSearchobx",
-                    Items = { },
-                    Multi = false,
-                    Callback = function(Value)
-                        ConfigSelected = Value
-                    end
-                })
-
-                ConfigsSection:Textbox({
-                    Name = "Config name", 
-                    Default = "", 
-                    Flag = "ConfigName", 
-                    Placeholder = "Enter text", 
-                    Callback = function(Value)
-                        ConfigName = Value
-                    end
-                })
-
-                local CreateAndDeleteButton = ConfigsSection:Button()
-
-                CreateAndDeleteButton:Add("Create", function()
-                    if ConfigName and ConfigName ~= "" then
-                        if not isfile(Library.Folders.Configs .. "/" .. ConfigName .. ".json") then
-                            writefile(Library.Folders.Configs .. "/" .. ConfigName .. ".json", Library:GetConfig())
-                            Library:Notification("Success", "Created config "..ConfigName .. " succesfully", 5)
-                            Library:RefreshConfigsList(ConfigsSearchbox)
-                        else
-                            Library:Notification("Error", "Config with the name "..ConfigName .. " already exists", 5)
-                            return
-                        end
-                    end
-                end)
-
-                CreateAndDeleteButton:Add("Delete", function()
-                    if ConfigSelected then
-                        Library:DeleteConfig(ConfigSelected)
-                        Library:Notification("Success", "Deleted config "..ConfigSelected .. " succesfully", 5)
-                        Library:RefreshConfigsList(ConfigsSearchbox)
-                    end
-                end)
-
-                local LoadAndSaveButton = ConfigsSection:Button()    
-
-                LoadAndSaveButton:Add("Load", function()
-                    if ConfigSelected then
-                        local Success, Result = Library:LoadConfig(readfile(Library.Folders.Configs .. "/" .. ConfigSelected))
-
-                        if Success then 
-                            Library:Notification("Success", "Loaded config "..ConfigSelected .. " succesfully", 5)
-                        else
-                            Library:Notification("Error", "Failed to load config "..ConfigSelected .. " report this to the devs:\n"..Result, 5)
-                        end
-                    end
-                end)
-
-                LoadAndSaveButton:Add("Save", function()
-                    if ConfigName and ConfigName ~= "" then
-                        writefile(Library.Folders.Configs .. "/" .. ConfigName .. ".json", Library:GetConfig())
-                        Library:Notification("Success", "Saved config "..ConfigName .. " succesfully", 5)
-                        Library:RefreshConfigsList(ConfigsSearchbox)
-                    end
-                end)
-
-                Library:RefreshConfigsList(ConfigsSearchbox)
-            end
+        local SettingsPage = Window:Page({Name = "UI Settings", Columns = 2}) do
 
             local ThemesSection = SettingsPage:Section({Name = "Themes", Side = 1}) do
                 for Index, Value in Library.Theme do 
@@ -6537,24 +6480,6 @@ local Library do
             end
 
             local SettingsSection = SettingsPage:Section({Name = "Settings", Side = 2}) do
-                SettingsSection:Toggle({
-                    Name = "Watermark",
-                    Flag = "Watermark",
-                    Default = true,
-                    Callback = function(Value)
-                        Watermark:SetVisibility(Value)
-                    end
-                })
-
-                SettingsSection:Toggle({
-                    Name = "Keybind list",
-                    Flag = "Keybind list",
-                    Default = true,
-                    Callback = function(Value)
-                        KeybindList:SetVisibility(Value)
-                    end
-                })
-
                 SettingsSection:Slider({
                     Name = "Fade time",
                     Flag = "FadeTime",
@@ -6598,20 +6523,6 @@ local Library do
                         Library.Tween.Direction = Enum.EasingDirection[Value]
                     end
                 })
-
-                SettingsSection:Button():Add("Unload", function()
-                    Library:Unload()
-                end)
-
-                SettingsSection:Label("UI Keybind"):Keybind({
-                    Name = "Menu keybind",
-                    Flag = "UIKeybind",
-                    Default = Library.MenuKeybind,
-                    Mode = "Toggle",
-                    Callback = function()
-                        Library.MenuKeybind = Library.Flags["UIKeybind"].Key
-                    end
-                })
             end
         end
         
@@ -6620,8 +6531,9 @@ local Library do
 end
 
 getgenv().Library = Library
+getgenv().UnloadAlternate = function()
+    if getgenv().Library and getgenv().Library.Unload then
+        pcall(getgenv().Library.Unload, getgenv().Library)
+    end
+end
 return Library
-
-
-
-
