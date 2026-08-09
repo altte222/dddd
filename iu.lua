@@ -5519,7 +5519,7 @@ local Library do
                 Name = "\0",
                 Position = UDim2New(0, 8, 0, 8),
                 BorderColor3 = FromRGB(0, 0, 0),
-                Size = UDim2New(1, -16, 0, 365),
+                Size = UDim2New(0.5, -12, 1, -16),
                 BorderSizePixel = 2,
                 BackgroundColor3 = FromRGB(14, 17, 15)
             })  Items["RealPlayerlist"]:AddToTheme({BackgroundColor3 = "Background", BorderColor3 = "Border"})
@@ -5568,21 +5568,29 @@ local Library do
                 PaddingLeft = UDimNew(0, 2)
             })
 
-            Items["PlayerAvatar"] = Instances:Create("ImageLabel", {
+            Items["DetailsFrame"] = Instances:Create("Frame", {
                 Parent = Items["Playerlist"].Instance,
+                Name = "DetailsFrame",
+                Position = UDim2New(0.5, 4, 0, 8),
+                Size = UDim2New(0.5, -12, 1, -16),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0
+            })
+
+            Items["PlayerAvatar"] = Instances:Create("ImageLabel", {
+                Parent = Items["DetailsFrame"].Instance,
                 Name = "\0",
                 BorderColor3 = FromRGB(0, 0, 0),
-                AnchorPoint = Vector2New(0, 1),
                 Image = "rbxassetid://98200387761744",
                 BackgroundTransparency = 1,
-                Position = UDim2New(0, 8, 1, -10),
+                Position = UDim2New(0, 8, 0, 8),
                 Size = UDim2New(0, 65, 0, 65),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })
 
             Items["PlayerUserID"] = Instances:Create("TextLabel", {
-                Parent = Items["Playerlist"].Instance,
+                Parent = Items["DetailsFrame"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(235, 235, 235),
@@ -5591,7 +5599,7 @@ local Library do
                 AutomaticSize = Enum.AutomaticSize.X,
                 Size = UDim2New(0, 0, 0, 15),
                 BackgroundTransparency = 1,
-                Position = UDim2New(0, 80, 1, -60),
+                Position = UDim2New(0, 80, 0, 28),
                 BorderSizePixel = 0,
                 ZIndex = 2,
                 TextSize = 9,
@@ -5601,7 +5609,7 @@ local Library do
             Items["PlayerUserID"]:TextBorder()
 
             Items["PlayerAccountAge"] = Instances:Create("TextLabel", {
-                Parent = Items["Playerlist"].Instance,
+                Parent = Items["DetailsFrame"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(235, 235, 235),
@@ -5610,7 +5618,7 @@ local Library do
                 AutomaticSize = Enum.AutomaticSize.X,
                 Size = UDim2New(0, 0, 0, 15),
                 BackgroundTransparency = 1,
-                Position = UDim2New(0, 80, 1, -40),
+                Position = UDim2New(0, 80, 0, 48),
                 BorderSizePixel = 0,
                 ZIndex = 2,
                 TextSize = 9,
@@ -5620,7 +5628,7 @@ local Library do
             Items["PlayerAccountAge"]:TextBorder()
 
             Items["PlayerUsername"] = Instances:Create("TextLabel", {
-                Parent = Items["Playerlist"].Instance,
+                Parent = Items["DetailsFrame"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(235, 235, 235),
@@ -5629,7 +5637,7 @@ local Library do
                 AutomaticSize = Enum.AutomaticSize.X,
                 Size = UDim2New(0, 0, 0, 15),
                 BackgroundTransparency = 1,
-                Position = UDim2New(0, 80, 1, -78),
+                Position = UDim2New(0, 80, 0, 8),
                 BorderSizePixel = 0,
                 ZIndex = 2,
                 TextSize = 9,
@@ -5642,19 +5650,18 @@ local Library do
         Playerlist.Buttons = {}
         
         local ActionsFrame = Instances:Create("Frame", {
-            Parent = Items["Playerlist"].Instance,
+            Parent = Items["DetailsFrame"].Instance,
             Name = "ActionsFrame",
-            AnchorPoint = Vector2New(1, 1),
-            Position = UDim2New(1, -8, 1, -8),
-            Size = UDim2New(0, 252, 0, 48),
+            Position = UDim2New(0, 8, 0, 85),
+            Size = UDim2New(1, -16, 1, -93),
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
         })
         
         local Grid = Instances:Create("UIGridLayout", {
             Parent = ActionsFrame.Instance,
-            CellSize = UDim2New(0, 59, 0, 20),
-            CellPadding = UDim2New(0, 4, 0, 4),
+            CellSize = UDim2New(0, 72, 0, 22),
+            CellPadding = UDim2New(0, 6, 0, 6),
             SortOrder = Enum.SortOrder.LayoutOrder
         })
         
@@ -5667,7 +5674,7 @@ local Library do
                 TextColor3 = Library.Theme.Text,
                 Text = name,
                 AutoButtonColor = false,
-                Size = UDim2New(0, 59, 0, 20),
+                Size = UDim2New(0, 72, 0, 22),
                 BorderSizePixel = 0,
                 BackgroundColor3 = Library.Theme.Element,
                 TextSize = 8,
