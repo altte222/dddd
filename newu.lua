@@ -1348,19 +1348,7 @@ local Library do
                 local fadeTime = Data.Window.FadeTime or 0
 
                 if fadeTime <= 0 then
-                    -- Instant visibility optimization for large tab layouts to prevent FPS lag
-                    for Index, Value in AllInstances do
-                        local TransparencyProperty = Tween:GetProperty(Value)
-                        if TransparencyProperty then
-                            if type(TransparencyProperty) == "table" then
-                                for _, Property in TransparencyProperty do
-                                    Value[Property] = Bool and 0 or 1
-                                end
-                            else
-                                Value[TransparencyProperty] = Bool and 0 or 1
-                            end
-                        end
-                    end
+                    -- Instant visibility optimization: skip loop entirely to prevent FPS lag and preserve theme transparencies
                     Debounce = false
                 else
                     for Index, Value in AllInstances do 
@@ -1605,19 +1593,7 @@ local Library do
                 local fadeTime = Data.Window.FadeTime or 0
 
                 if fadeTime <= 0 then
-                    -- Instant visibility optimization for large subtab layouts to prevent FPS lag
-                    for Index, Value in AllInstances do
-                        local TransparencyProperty = Tween:GetProperty(Value)
-                        if TransparencyProperty then
-                            if type(TransparencyProperty) == "table" then
-                                for _, Property in TransparencyProperty do
-                                    Value[Property] = Bool and 0 or 1
-                                end
-                            else
-                                Value[TransparencyProperty] = Bool and 0 or 1
-                            end
-                        end
-                    end
+                    -- Instant visibility optimization: skip loop entirely to prevent FPS lag and preserve theme transparencies
                     Debounce = false
                 else
                     for Index, Value in AllInstances do 
@@ -5383,7 +5359,7 @@ local Library do
                     if Items["MouseBackground"] then
                         Items["MouseBackground"].Instance.Visible = true
                     end
-                    UserInputService.MouseIconEnabled = false
+                    UserInputService.MouseIconEnabled = true
                 else
                     if Items["MouseBackground"] then
                         Items["MouseBackground"].Instance.Visible = false
