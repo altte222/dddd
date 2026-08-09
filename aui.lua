@@ -837,6 +837,7 @@ local Library do
     Library.Unload = function(self)
         if not self then return end
 
+        -- Destroy UI holders
         if self.Holder and self.Holder.Instance then
             pcall(function()
                 self.Holder.Instance.Visible = false
@@ -853,29 +854,45 @@ local Library do
             pcall(function() self.NotifHolder.Instance:Destroy() end)
         end
 
-        for _, Value in ipairs(self.Connections or {}) do
-            if Value and Value.Connection and typeof(Value.Connection.Disconnect) == "function" then
-                pcall(function() Value.Connection:Disconnect() end)
+        -- Disconnect all connections (support both ipairs and pairs)
+        if self.Connections then
+            for _, Value in pairs(self.Connections) do
+                if Value and Value.Connection and typeof(Value.Connection.Disconnect) == "function" then
+                    pcall(function() Value.Connection:Disconnect() end)
+                end
             end
+            self.Connections = {}
         end
-        self.Connections = {}
 
-        for _, Value in ipairs(self.Threads or {}) do
-            if Value and coroutine.status(Value) ~= "dead" then
-                pcall(function() coroutine.close(Value) end)
+        -- Close all active threads
+        if self.Threads then
+            for _, Value in pairs(self.Threads) do
+                if Value and coroutine.status(Value) ~= "dead" then
+                    pcall(function() coroutine.close(Value) end)
+                end
             end
+            self.Threads = {}
         end
-        self.Threads = {}
 
+        -- Clear all references
         self.Holder = nil
         self.UnusedHolder = nil
         self.NotifHolder = nil
         self.KeyList = nil
         self.WatermarkObj = nil
+        self.Pages = {}
+        self.Sections = {}
+        self.Colorpickers = {}
+        self.Flags = {}
+        self.OpenFrames = {}
+        self.CurrentPage = nil
 
+        -- Clear global reference
         Library = nil
         getgenv().Library = nil
-        UserInputService.MouseIconEnabled = true
+
+        -- Restore mouse icon
+        pcall(function() UserInputService.MouseIconEnabled = true end)
     end
 
     Library.GetImage = function(self, Image)
@@ -1305,7 +1322,7 @@ local Library do
                             ScrollBarImageColor3 = FromRGB(0, 0, 0),
                             Active = true,
                             AutomaticCanvasSize = Enum.AutomaticSize.Y,
-                            ScrollBarThickness = 0,
+                            ScrollBarThickness = 3,
                             BackgroundTransparency = 1,
                             Size = UDim2New(1, 0, 1, 0),
                             BackgroundColor3 = FromRGB(255, 255, 255),
@@ -1552,7 +1569,7 @@ local Library do
                         ScrollBarImageColor3 = FromRGB(0, 0, 0),
                         Active = true,
                         AutomaticCanvasSize = Enum.AutomaticSize.Y,
-                        ScrollBarThickness = 0,
+                        ScrollBarThickness = 3,
                         BackgroundTransparency = 1,
                         Size = UDim2New(1, 0, 1, 0),
                         BackgroundColor3 = FromRGB(255, 255, 255),
@@ -5244,7 +5261,7 @@ local Library do
             Items["Logo"] = Instances:Create("TextLabel", {
                 Parent = Items["Side"].Instance,
                 Name = "\0",
-                Text = "K",
+                Text = "",
                 Font = Enum.Font.GothamBlack,
                 TextScaled = true,
                 TextColor3 = FromRGB(202, 243, 255),
@@ -5252,7 +5269,7 @@ local Library do
                 AnchorPoint = Vector2New(0.5, 0),
                 Position = UDim2New(0.5, 0, 0, 8),
                 Size = UDim2New(0, 28, 0, 28),
-                Visible = true,
+                Visible = false,
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })
