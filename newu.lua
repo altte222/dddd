@@ -10,6 +10,18 @@ if Library then
     Library:Unload()
 end
 
+-- Declare globals for compiler
+local LPH_OBFUSCATED = LPH_OBFUSCATED or false
+local LPH_NO_VIRTUALIZE = LPH_NO_VIRTUALIZE or function(f) return f end
+local LPH_JIT = LPH_JIT or function(f) return f end
+local LPH_JIT_MAX = LPH_JIT_MAX or function(f) return f end
+
+if not LPH_OBFUSCATED then
+    getgenv()["LPH_NO_" .. "VIRTUALIZE"] = function(f) return f end
+    getgenv()["LPH_J" .. "IT"] = function(f) return f end
+    getgenv()["LPH_J" .. "IT_MAX"] = function(f) return f end
+end
+
 local LoadTick = os.clock()
 
 local Library do
@@ -494,13 +506,13 @@ local Library do
                 end
             end)
 
-            Library:Connect(UserInputService.InputChanged, function(Input)
+            Library:Connect(UserInputService.InputChanged, LPH_NO_VIRTUALIZE(function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
                     if Dragging then
                         Set(Input)
                     end
                 end
-            end)
+            end))
 
             return Dragging
         end
@@ -556,7 +568,7 @@ local Library do
                 end
             end)
 
-            Library:Connect(UserInputService.InputChanged, function(Input)
+            Library:Connect(UserInputService.InputChanged, LPH_NO_VIRTUALIZE(function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
                     if Resizing then
                         ResizeMax = Maximum or Gui.Parent.AbsoluteSize - Gui.AbsoluteSize
@@ -567,7 +579,7 @@ local Library do
                         Tween:Create(Gui, TweenInfo.new(0.17, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = Delta}, true)
                     end
                 end
-            end)
+            end))
 
             return Resizing
         end
@@ -718,10 +730,10 @@ local Library do
                 Items["UIStroke2"]:Tween(nil, {Transparency = 0})
                 Items["UIStroke3"]:Tween(nil, {Transparency = 0})
 
-                RenderStepped = RunService.RenderStepped:Connect(function()
+                RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
                     MouseLocation = UserInputService:GetMouseLocation()
                     Items["Tooltip"].Instance.Position = UDim2New(0, MouseLocation.X + 8, 0, MouseLocation.Y - 35)
-                end)
+                end))
             end)
 
             Library:Connect(Gui.MouseLeave, function()
@@ -1333,26 +1345,48 @@ local Library do
                 TableInsert(AllInstances, Items["Page"].Instance)
                 
                 local NewTween 
+                local fadeTime = Data.Window.FadeTime or 0
 
-                for Index, Value in AllInstances do 
-                    local TransparencyProperty = Tween:GetProperty(Value)
+                if fadeTime <= 0 then
+                    -- Instant visibility optimization for large tab layouts to prevent FPS lag
+                    for Index, Value in AllInstances do
+                        local TransparencyProperty = Tween:GetProperty(Value)
+                        if TransparencyProperty then
+                            if type(TransparencyProperty) == "table" then
+                                for _, Property in TransparencyProperty do
+                                    Value[Property] = Bool and 0 or 1
+                                end
+                            else
+                                Value[TransparencyProperty] = Bool and 0 or 1
+                            end
+                        end
+                    end
+                    Debounce = false
+                else
+                    for Index, Value in AllInstances do 
+                        local TransparencyProperty = Tween:GetProperty(Value)
 
-                    if not TransparencyProperty then 
-                        continue
+                        if not TransparencyProperty then 
+                            continue
+                        end
+
+                        if type(TransparencyProperty) == "table" then 
+                            for _, Property in TransparencyProperty do 
+                                NewTween = Tween:FadeItem(Value, Property, Bool, fadeTime)
+                            end
+                        else
+                            NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, fadeTime)
+                        end
                     end
 
-                    if type(TransparencyProperty) == "table" then 
-                        for _, Property in TransparencyProperty do 
-                            NewTween = Tween:FadeItem(Value, Property, Bool, Data.Window.FadeTime)
-                        end
+                    if NewTween then
+                        Library:Connect(NewTween.Tween.Completed, function()
+                            Debounce = false
+                        end)
                     else
-                        NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, Data.Window.FadeTime)
+                        Debounce = false
                     end
                 end
-
-                Library:Connect(NewTween.Tween.Completed, function()
-                    Debounce = false
-                end)
             end
 
             Items["Inactive"]:Connect("MouseButton1Down", function()
@@ -1568,26 +1602,48 @@ local Library do
                 TableInsert(AllInstances, Items["Page"].Instance)
 
                 local NewTween 
+                local fadeTime = Data.Window.FadeTime or 0
 
-                for Index, Value in AllInstances do 
-                    local TransparencyProperty = Tween:GetProperty(Value)
+                if fadeTime <= 0 then
+                    -- Instant visibility optimization for large subtab layouts to prevent FPS lag
+                    for Index, Value in AllInstances do
+                        local TransparencyProperty = Tween:GetProperty(Value)
+                        if TransparencyProperty then
+                            if type(TransparencyProperty) == "table" then
+                                for _, Property in TransparencyProperty do
+                                    Value[Property] = Bool and 0 or 1
+                                end
+                            else
+                                Value[TransparencyProperty] = Bool and 0 or 1
+                            end
+                        end
+                    end
+                    Debounce = false
+                else
+                    for Index, Value in AllInstances do 
+                        local TransparencyProperty = Tween:GetProperty(Value)
 
-                    if not TransparencyProperty then 
-                        continue
+                        if not TransparencyProperty then 
+                            continue
+                        end
+
+                        if type(TransparencyProperty) == "table" then 
+                            for _, Property in TransparencyProperty do 
+                                NewTween = Tween:FadeItem(Value, Property, Bool, fadeTime)
+                            end
+                        else
+                            NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, fadeTime)
+                        end
                     end
 
-                    if type(TransparencyProperty) == "table" then 
-                        for _, Property in TransparencyProperty do 
-                            NewTween = Tween:FadeItem(Value, Property, Bool, Data.Window.FadeTime)
-                        end
+                    if NewTween then
+                        Library:Connect(NewTween.Tween.Completed, function()
+                            Debounce = false
+                        end)
                     else
-                        NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, Data.Window.FadeTime)
+                        Debounce = false
                     end
                 end
-
-                Library:Connect(NewTween.Tween.Completed, function()
-                    Debounce = false
-                end)
             end
 
             Items["Inactive"]:Connect("MouseButton1Down", function()
@@ -2142,7 +2198,7 @@ local Library do
                 end
             end)
 
-            Library:Connect(UserInputService.InputChanged, function(Input)
+            Library:Connect(UserInputService.InputChanged, LPH_NO_VIRTUALIZE(function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
                     if Slider.Sliding then
                         local SizeX = (Mouse.X - Items["RealSlider"].Instance.AbsolutePosition.X) / Items["RealSlider"].Instance.AbsoluteSize.X
@@ -2151,7 +2207,7 @@ local Library do
                         Slider:Set(Value)
                     end
                 end
-            end)
+            end))
 
             Items["Slider"]:OnHover(function()
                 Items["RealSlider"]:ChangeItemTheme({BackgroundColor3 = "Hovered Element", BorderColor3 = "Border"})
@@ -2402,10 +2458,10 @@ local Library do
                     Items["OptionHolder"].Instance.Parent = Library.Holder.Instance
                     Items["Icon"]:Tween(nil, {Rotation = -90})
                     
-                    RenderStepped = RunService.RenderStepped:Connect(function()
+                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
                         Items["OptionHolder"].Instance.Position = UDim2New(0, Items["RealDropdown"].Instance.AbsolutePosition.X, 0, Items["RealDropdown"].Instance.AbsolutePosition.Y + Items["RealDropdown"].Instance.AbsoluteSize.Y + 5)
                         Items["OptionHolder"].Instance.Size = UDim2New(0, Items["RealDropdown"].Instance.AbsoluteSize.X, 0, 0)
-                    end)
+                    end))
 
                     if not Debounce then 
                         for Index, Value in Library.OpenFrames do 
@@ -3565,9 +3621,9 @@ local Library do
                     Items["ColorpickerWindow"].Instance.Visible = true
                     Items["ColorpickerWindow"].Instance.Parent = Library.Holder.Instance
                     
-                    RenderStepped = RunService.RenderStepped:Connect(function()
+                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
                         Items["ColorpickerWindow"].Instance.Position = UDim2New(0, Items["ColorpickerButton"].Instance.AbsolutePosition.X, 0, Items["ColorpickerButton"].Instance.AbsolutePosition.Y + Items["ColorpickerButton"].Instance.AbsoluteSize.Y + 5)
-                    end)
+                    end))
 
                     if not Data.Debounce then
                         for Index, Value in Library.OpenFrames do 
@@ -3702,7 +3758,7 @@ local Library do
             local SlidingPalette = false
             local PaletteChanged
             
-            function Colorpicker:SlidePalette(Input)
+            Colorpicker.SlidePalette = LPH_NO_VIRTUALIZE(function(self, Input)
                 if not Input or not SlidingPalette then
                     return
                 end
@@ -3718,12 +3774,12 @@ local Library do
 
                 Items["PaletteDragger"]:Tween(TweenInfo.new(Library.Tween.Time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2New(SlideX, 0, SlideY, 0)})
                 Colorpicker:Update(false, true)
-            end
+            end)
             
             local SlidingHue = false
             local HueChanged
 
-            function Colorpicker:SlideHue(Input)
+            Colorpicker.SlideHue = LPH_NO_VIRTUALIZE(function(self, Input)
                 if not Input or not SlidingHue then
                     return
                 end
@@ -3736,12 +3792,12 @@ local Library do
 
                 Items["HueDragger"]:Tween(TweenInfo.new(Library.Tween.Time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2New(0, 0, SlideY, 0)})
                 Colorpicker:Update(false, true)
-            end
+            end)
 
             local SlidingAlpha = false 
             local AlphaChanged
 
-            function Colorpicker:SlideAlpha(Input)
+            Colorpicker.SlideAlpha = LPH_NO_VIRTUALIZE(function(self, Input)
                 if not Input or not SlidingAlpha then
                     return
                 end
@@ -3754,7 +3810,7 @@ local Library do
 
                 Items["AlphaDragger"]:Tween(TweenInfo.new(Library.Tween.Time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2New(SlideX, 0, 0, 0)})
                 Colorpicker:Update(true, true)
-            end
+            end)
 
             Items["Palette"]:Connect("InputBegan", function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -3819,7 +3875,7 @@ local Library do
                 end
             end)
 
-            Library:Connect(UserInputService.InputChanged, function(Input)
+            Library:Connect(UserInputService.InputChanged, LPH_NO_VIRTUALIZE(function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseMovement then
                     if SlidingPalette then 
                         Colorpicker:SlidePalette(Input)
@@ -3833,7 +3889,7 @@ local Library do
                         Colorpicker:SlideAlpha(Input)
                     end
                 end
-            end)
+            end))
 
             Library:Connect(UserInputService.InputBegan, function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -4082,9 +4138,9 @@ local Library do
                     Items["KeybindWindow"].Instance.Visible = true
                     Items["KeybindWindow"].Instance.Parent = Library.Holder.Instance
                     
-                    RenderStepped = RunService.RenderStepped:Connect(function()
+                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
                         Items["KeybindWindow"].Instance.Position = UDim2New(0, Items["KeyButton"].Instance.AbsolutePosition.X, 0, Items["KeyButton"].Instance.AbsolutePosition.Y + Items["KeyButton"].Instance.AbsoluteSize.Y + 5)
-                    end)
+                    end))
 
                     if not Debounce then 
                         for Index, Value in Library.OpenFrames do 
@@ -4759,7 +4815,7 @@ local Library do
             local SearchStepped
 
             Items["Input"]:Connect("Focused", function()
-                SearchStepped = RunService.RenderStepped:Connect(function()
+                SearchStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
                     for Index, Value in Dropdown.Options do
                         if Items["Input"].Instance.Text ~= "" then
                             if StringFind(StringLower(Value.Name), StringLower(Items["Input"].Instance.Text)) then
@@ -4771,7 +4827,7 @@ local Library do
                             Value.Button.Instance.Visible = true
                         end
                     end
-                end)
+                end))
             end)
 
             Items["Input"]:Connect("FocusLost", function()
@@ -5324,10 +5380,14 @@ local Library do
                 Debounce = false 
                 Items["Window"].Instance.Visible = Window.IsOpen
                 if Window.IsOpen then
-                    Items["MouseBackground"].Instance.Visible = true
+                    if Items["MouseBackground"] then
+                        Items["MouseBackground"].Instance.Visible = true
+                    end
                     UserInputService.MouseIconEnabled = false
                 else
-                    Items["MouseBackground"].Instance.Visible = false
+                    if Items["MouseBackground"] then
+                        Items["MouseBackground"].Instance.Visible = false
+                    end
                     UserInputService.MouseIconEnabled = true
                 end
             end)
@@ -6338,7 +6398,7 @@ local Library do
             })
 
             Items["Text"] = Instances:Create("TextLabel", {
-                Parent = Items["Label"].Instance,
+                Parent = Items["BlankElement"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(235, 235, 235),
