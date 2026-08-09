@@ -4875,7 +4875,8 @@ local Library do
 
             Items["Input"]:Connect("FocusLost", function()
                 if SearchStepped then
-                        Library:Disconnect(SearchStepped.Name)
+                    Library:Disconnect(SearchStepped.Name)
+                end
             end)
 
             for Index, Value in Data.Items do 
