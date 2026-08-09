@@ -10,6 +10,18 @@ if Library then
     Library:Unload()
 end
 
+-- Declare globals for compiler
+local LPH_OBFUSCATED = LPH_OBFUSCATED or false
+local LPH_NO_VIRTUALIZE = LPH_NO_VIRTUALIZE or function(f) return f end
+local LPH_JIT = LPH_JIT or function(f) return f end
+local LPH_JIT_MAX = LPH_JIT_MAX or function(f) return f end
+
+if not LPH_OBFUSCATED then
+    getgenv()["LPH_NO_" .. "VIRTUALIZE"] = function(f) return f end
+    getgenv()["LPH_J" .. "IT"] = function(f) return f end
+    getgenv()["LPH_J" .. "IT_MAX"] = function(f) return f end
+end
+
 local LoadTick = os.clock()
 
 local Library do
@@ -79,9 +91,9 @@ local Library do
         FadeSpeed = 0.2,
 
         Folders = {
-            Directory = "scoot",
-            Configs = "scoot/Configs",
-            Assets = "scoot/Assets",
+            Directory = "alternate",
+            Configs = "alternate/Configs",
+            Assets = "alternate/Assets",
         },
 
         Images = {
@@ -402,7 +414,7 @@ local Library do
         end
 
         Instances.AddToTheme = function(self, Properties)
-            if not self.Instance then 
+            if not self.Instance or not Library then 
                 return
             end
 
@@ -410,7 +422,7 @@ local Library do
         end
 
         Instances.ChangeItemTheme = function(self, Properties)
-            if not self.Instance then 
+            if not self.Instance or not Library then 
                 return
             end
 
@@ -418,7 +430,7 @@ local Library do
         end
 
         Instances.Connect = function(self, Event, Callback, Name)
-            if not self.Instance then 
+            if not self.Instance or not Library then 
                 return
             end
 
@@ -494,13 +506,13 @@ local Library do
                 end
             end)
 
-            Library:Connect(UserInputService.InputChanged, function(Input)
+            Library:Connect(UserInputService.InputChanged, LPH_NO_VIRTUALIZE(function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
                     if Dragging then
                         Set(Input)
                     end
                 end
-            end)
+            end))
 
             return Dragging
         end
@@ -556,7 +568,7 @@ local Library do
                 end
             end)
 
-            Library:Connect(UserInputService.InputChanged, function(Input)
+            Library:Connect(UserInputService.InputChanged, LPH_NO_VIRTUALIZE(function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
                     if Resizing then
                         ResizeMax = Maximum or Gui.Parent.AbsoluteSize - Gui.AbsoluteSize
@@ -567,7 +579,7 @@ local Library do
                         Tween:Create(Gui, TweenInfo.new(0.17, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = Delta}, true)
                     end
                 end
-            end)
+            end))
 
             return Resizing
         end
@@ -718,10 +730,10 @@ local Library do
                 Items["UIStroke2"]:Tween(nil, {Transparency = 0})
                 Items["UIStroke3"]:Tween(nil, {Transparency = 0})
 
-                RenderStepped = RunService.RenderStepped:Connect(function()
+                RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
                     MouseLocation = UserInputService:GetMouseLocation()
                     Items["Tooltip"].Instance.Position = UDim2New(0, MouseLocation.X + 8, 0, MouseLocation.Y - 35)
-                end)
+                end))
             end)
 
             Library:Connect(Gui.MouseLeave, function()
@@ -823,21 +835,46 @@ local Library do
     })
 
     Library.Unload = function(self)
-        for Index, Value in self.Connections do 
-            Value.Connection:Disconnect()
+        if not self then return end
+
+        if self.Holder and self.Holder.Instance then
+            pcall(function()
+                self.Holder.Instance.Visible = false
+                self.Holder.Instance:Destroy()
+            end)
+        end
+        if self.UnusedHolder and self.UnusedHolder.Instance then
+            pcall(function()
+                self.UnusedHolder.Instance.Visible = false
+                self.UnusedHolder.Instance:Destroy()
+            end)
+        end
+        if self.NotifHolder and self.NotifHolder.Instance then
+            pcall(function() self.NotifHolder.Instance:Destroy() end)
         end
 
-        for Index, Value in self.Threads do 
-            coroutine.close(Value)
+        for _, Value in ipairs(self.Connections or {}) do
+            if Value and Value.Connection and typeof(Value.Connection.Disconnect) == "function" then
+                pcall(function() Value.Connection:Disconnect() end)
+            end
         end
+        self.Connections = {}
 
-        if self.Holder then 
-            self.Holder:Clean()
+        for _, Value in ipairs(self.Threads or {}) do
+            if Value and coroutine.status(Value) ~= "dead" then
+                pcall(function() coroutine.close(Value) end)
+            end
         end
+        self.Threads = {}
 
-        Library = nil 
+        self.Holder = nil
+        self.UnusedHolder = nil
+        self.NotifHolder = nil
+        self.KeyList = nil
+        self.WatermarkObj = nil
+
+        Library = nil
         getgenv().Library = nil
-
         UserInputService.MouseIconEnabled = true
     end
 
@@ -1333,26 +1370,36 @@ local Library do
                 TableInsert(AllInstances, Items["Page"].Instance)
                 
                 local NewTween 
+                local fadeTime = Data.Window.FadeTime or 0
 
-                for Index, Value in AllInstances do 
-                    local TransparencyProperty = Tween:GetProperty(Value)
+                if fadeTime <= 0 then
+                    -- Instant visibility optimization: skip loop entirely to prevent FPS lag and preserve theme transparencies
+                    Debounce = false
+                else
+                    for Index, Value in AllInstances do 
+                        local TransparencyProperty = Tween:GetProperty(Value)
 
-                    if not TransparencyProperty then 
-                        continue
+                        if not TransparencyProperty then 
+                            continue
+                        end
+
+                        if type(TransparencyProperty) == "table" then 
+                            for _, Property in TransparencyProperty do 
+                                NewTween = Tween:FadeItem(Value, Property, Bool, fadeTime)
+                            end
+                        else
+                            NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, fadeTime)
+                        end
                     end
 
-                    if type(TransparencyProperty) == "table" then 
-                        for _, Property in TransparencyProperty do 
-                            NewTween = Tween:FadeItem(Value, Property, Bool, Data.Window.FadeTime)
-                        end
+                    if NewTween then
+                        Library:Connect(NewTween.Tween.Completed, function()
+                            Debounce = false
+                        end)
                     else
-                        NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, Data.Window.FadeTime)
+                        Debounce = false
                     end
                 end
-
-                Library:Connect(NewTween.Tween.Completed, function()
-                    Debounce = false
-                end)
             end
 
             Items["Inactive"]:Connect("MouseButton1Down", function()
@@ -1568,26 +1615,36 @@ local Library do
                 TableInsert(AllInstances, Items["Page"].Instance)
 
                 local NewTween 
+                local fadeTime = Data.Window.FadeTime or 0
 
-                for Index, Value in AllInstances do 
-                    local TransparencyProperty = Tween:GetProperty(Value)
+                if fadeTime <= 0 then
+                    -- Instant visibility optimization: skip loop entirely to prevent FPS lag and preserve theme transparencies
+                    Debounce = false
+                else
+                    for Index, Value in AllInstances do 
+                        local TransparencyProperty = Tween:GetProperty(Value)
 
-                    if not TransparencyProperty then 
-                        continue
+                        if not TransparencyProperty then 
+                            continue
+                        end
+
+                        if type(TransparencyProperty) == "table" then 
+                            for _, Property in TransparencyProperty do 
+                                NewTween = Tween:FadeItem(Value, Property, Bool, fadeTime)
+                            end
+                        else
+                            NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, fadeTime)
+                        end
                     end
 
-                    if type(TransparencyProperty) == "table" then 
-                        for _, Property in TransparencyProperty do 
-                            NewTween = Tween:FadeItem(Value, Property, Bool, Data.Window.FadeTime)
-                        end
+                    if NewTween then
+                        Library:Connect(NewTween.Tween.Completed, function()
+                            Debounce = false
+                        end)
                     else
-                        NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, Data.Window.FadeTime)
+                        Debounce = false
                     end
                 end
-
-                Library:Connect(NewTween.Tween.Completed, function()
-                    Debounce = false
-                end)
             end
 
             Items["Inactive"]:Connect("MouseButton1Down", function()
@@ -1602,6 +1659,19 @@ local Library do
 
             if #Data.Page.SubPages == 0 then 
                 SubPage:Turn(true)
+            end
+
+            SubPage.Items = Items
+            function SubPage:SetVisibility(Bool)
+                Items["Inactive"].Instance.Visible = Bool
+                if not Bool and SubPage.Active then
+                    for _, val in ipairs(Data.Page.SubPages) do
+                        if val ~= SubPage and val.Items and val.Items["Inactive"] and val.Items["Inactive"].Instance.Visible then
+                            val:Turn(true)
+                            break
+                        end
+                    end
+                end
             end
 
             TableInsert(Data.Page.SubPages, SubPage)
@@ -1899,13 +1969,13 @@ local Library do
 
                 function NewButton:Press()
                     SubItems["NewButton"]:ChangeItemTheme({BackgroundColor3 = "Accent", BorderColor3 = "Border"})
-                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Accent})
+                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = (Library and Library.Theme and Library.Theme.Accent) or FromRGB(255,255,255)})
 
                     Library:SafeCall(Callback)
                     task.wait(0.1)
 
                     SubItems["NewButton"]:ChangeItemTheme({BackgroundColor3 = "Element", BorderColor3 = "Border"})
-                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
+                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = (Library and Library.Theme and Library.Theme.Element) or FromRGB(22,22,22)})
                 end
 
                 function NewButton:SetVisibility(Bool)
@@ -1925,12 +1995,12 @@ local Library do
 
                 SubItems["NewButton"]:OnHover(function()
                     SubItems["NewButton"]:ChangeItemTheme({BackgroundColor3 = "Hovered Element", BorderColor3 = "Border"})
-                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = Library.Theme["Hovered Element"]})
+                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = (Library and Library.Theme and Library.Theme["Hovered Element"]) or FromRGB(40,40,40)})
                 end)
 
                 SubItems["NewButton"]:OnHoverLeave(function()
                     SubItems["NewButton"]:ChangeItemTheme({BackgroundColor3 = "Element", BorderColor3 = "Border"})
-                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
+                    SubItems["NewButton"]:Tween(nil, {BackgroundColor3 = (Library and Library.Theme and Library.Theme.Element) or FromRGB(22,22,22)})
                 end)
 
                 SubItems["NewButton"]:Connect("MouseButton1Down", function()
@@ -2129,7 +2199,7 @@ local Library do
                 end
             end)
 
-            Library:Connect(UserInputService.InputChanged, function(Input)
+            Library:Connect(UserInputService.InputChanged, LPH_NO_VIRTUALIZE(function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
                     if Slider.Sliding then
                         local SizeX = (Mouse.X - Items["RealSlider"].Instance.AbsolutePosition.X) / Items["RealSlider"].Instance.AbsoluteSize.X
@@ -2138,7 +2208,7 @@ local Library do
                         Slider:Set(Value)
                     end
                 end
-            end)
+            end))
 
             Items["Slider"]:OnHover(function()
                 Items["RealSlider"]:ChangeItemTheme({BackgroundColor3 = "Hovered Element", BorderColor3 = "Border"})
@@ -2389,10 +2459,10 @@ local Library do
                     Items["OptionHolder"].Instance.Parent = Library.Holder.Instance
                     Items["Icon"]:Tween(nil, {Rotation = -90})
                     
-                    RenderStepped = RunService.RenderStepped:Connect(function()
+                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
                         Items["OptionHolder"].Instance.Position = UDim2New(0, Items["RealDropdown"].Instance.AbsolutePosition.X, 0, Items["RealDropdown"].Instance.AbsolutePosition.Y + Items["RealDropdown"].Instance.AbsoluteSize.Y + 5)
                         Items["OptionHolder"].Instance.Size = UDim2New(0, Items["RealDropdown"].Instance.AbsoluteSize.X, 0, 0)
-                    end)
+                    end))
 
                     if not Debounce then 
                         for Index, Value in Library.OpenFrames do 
@@ -3552,9 +3622,9 @@ local Library do
                     Items["ColorpickerWindow"].Instance.Visible = true
                     Items["ColorpickerWindow"].Instance.Parent = Library.Holder.Instance
                     
-                    RenderStepped = RunService.RenderStepped:Connect(function()
+                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
                         Items["ColorpickerWindow"].Instance.Position = UDim2New(0, Items["ColorpickerButton"].Instance.AbsolutePosition.X, 0, Items["ColorpickerButton"].Instance.AbsolutePosition.Y + Items["ColorpickerButton"].Instance.AbsoluteSize.Y + 5)
-                    end)
+                    end))
 
                     if not Data.Debounce then
                         for Index, Value in Library.OpenFrames do 
@@ -3689,7 +3759,7 @@ local Library do
             local SlidingPalette = false
             local PaletteChanged
             
-            function Colorpicker:SlidePalette(Input)
+            Colorpicker.SlidePalette = LPH_NO_VIRTUALIZE(function(self, Input)
                 if not Input or not SlidingPalette then
                     return
                 end
@@ -3705,12 +3775,12 @@ local Library do
 
                 Items["PaletteDragger"]:Tween(TweenInfo.new(Library.Tween.Time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2New(SlideX, 0, SlideY, 0)})
                 Colorpicker:Update(false, true)
-            end
+            end)
             
             local SlidingHue = false
             local HueChanged
 
-            function Colorpicker:SlideHue(Input)
+            Colorpicker.SlideHue = LPH_NO_VIRTUALIZE(function(self, Input)
                 if not Input or not SlidingHue then
                     return
                 end
@@ -3723,12 +3793,12 @@ local Library do
 
                 Items["HueDragger"]:Tween(TweenInfo.new(Library.Tween.Time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2New(0, 0, SlideY, 0)})
                 Colorpicker:Update(false, true)
-            end
+            end)
 
             local SlidingAlpha = false 
             local AlphaChanged
 
-            function Colorpicker:SlideAlpha(Input)
+            Colorpicker.SlideAlpha = LPH_NO_VIRTUALIZE(function(self, Input)
                 if not Input or not SlidingAlpha then
                     return
                 end
@@ -3741,7 +3811,7 @@ local Library do
 
                 Items["AlphaDragger"]:Tween(TweenInfo.new(Library.Tween.Time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2New(SlideX, 0, 0, 0)})
                 Colorpicker:Update(true, true)
-            end
+            end)
 
             Items["Palette"]:Connect("InputBegan", function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -3806,7 +3876,7 @@ local Library do
                 end
             end)
 
-            Library:Connect(UserInputService.InputChanged, function(Input)
+            Library:Connect(UserInputService.InputChanged, LPH_NO_VIRTUALIZE(function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseMovement then
                     if SlidingPalette then 
                         Colorpicker:SlidePalette(Input)
@@ -3820,7 +3890,7 @@ local Library do
                         Colorpicker:SlideAlpha(Input)
                     end
                 end
-            end)
+            end))
 
             Library:Connect(UserInputService.InputBegan, function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -4069,9 +4139,9 @@ local Library do
                     Items["KeybindWindow"].Instance.Visible = true
                     Items["KeybindWindow"].Instance.Parent = Library.Holder.Instance
                     
-                    RenderStepped = RunService.RenderStepped:Connect(function()
+                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
                         Items["KeybindWindow"].Instance.Position = UDim2New(0, Items["KeyButton"].Instance.AbsolutePosition.X, 0, Items["KeyButton"].Instance.AbsolutePosition.Y + Items["KeyButton"].Instance.AbsoluteSize.Y + 5)
-                    end)
+                    end))
 
                     if not Debounce then 
                         for Index, Value in Library.OpenFrames do 
@@ -4746,7 +4816,7 @@ local Library do
             local SearchStepped
 
             Items["Input"]:Connect("Focused", function()
-                SearchStepped = RunService.RenderStepped:Connect(function()
+                SearchStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
                     for Index, Value in Dropdown.Options do
                         if Items["Input"].Instance.Text ~= "" then
                             if StringFind(StringLower(Value.Name), StringLower(Items["Input"].Instance.Text)) then
@@ -4758,7 +4828,7 @@ local Library do
                             Value.Button.Instance.Visible = true
                         end
                     end
-                end)
+                end))
             end)
 
             Items["Input"]:Connect("FocusLost", function()
@@ -4872,7 +4942,7 @@ local Library do
                 BorderColor3 = FromRGB(12, 12, 12),
                 Size = UDim2New(0, 116, 0, 0),
                 BorderSizePixel = 2,
-                AutomaticSize = Enum.AutomaticSize.Y,
+                AutomaticSize = Enum.AutomaticSize.None,
                 BackgroundColor3 = FromRGB(14, 17, 15)
             })  Items["KeybindList"]:AddToTheme({BackgroundColor3 = "Background", BorderColor3 = "Border"})
 
@@ -4943,6 +5013,24 @@ local Library do
             })
         end
 
+        local function updateSize()
+            local activeCount = 0
+            for _, child in ipairs(Items["Content"].Instance:GetChildren()) do
+                if child:IsA("TextLabel") and child.Visible then
+                    activeCount = activeCount + 1
+                end
+            end
+            if activeCount == 0 then
+                Items["KeybindList"].Instance.Visible = false
+            else
+                if Library.Flags["Keybind list"] ~= false then
+                    Items["KeybindList"].Instance.Visible = true
+                end
+                local height = 32 + (activeCount * 15) + ((activeCount - 1) * 2) + 16
+                Items["KeybindList"].Instance.Size = UDim2New(0, 116, 0, height)
+            end
+        end
+
         function KeybindList:Add(Key, Name, Mode)
             local NewKey = Instances:Create("TextLabel", {
                 Parent = Items["Content"].Instance,
@@ -4971,9 +5059,11 @@ local Library do
                 if Bool then
                     NewKey.Instance.Visible = true
                     NewKey:Tween(nil, {TextTransparency = 0})
+                    updateSize()
                 else
                     NewKey:Tween(nil, {TextTransparency = 1}).Tween.Completed:Connect(function()
                         NewKey.Instance.Visible = false
+                        updateSize()
                     end)
                 end
             end
@@ -4983,6 +5073,9 @@ local Library do
 
         function KeybindList:SetVisibility(Bool)
             Items["KeybindList"].Instance.Visible = Bool
+            if Bool then
+                updateSize()
+            end
         end
 
         return KeybindList
@@ -5148,21 +5241,22 @@ local Library do
 
             Items["Window"].Instance.Visible = false
 
-            Items["Logo"] = Instances:Create("ImageLabel", {
+            Items["Logo"] = Instances:Create("TextLabel", {
                 Parent = Items["Side"].Instance,
                 Name = "\0",
-                ImageColor3 = FromRGB(202, 243, 255),
-                ScaleType = Enum.ScaleType.Fit,
-                BorderColor3 = FromRGB(0, 0, 0),
-                AnchorPoint = Vector2New(0.5, 0),
-                Image = "rbxassetid://" .. Window.Logo,
+                Text = "K",
+                Font = Enum.Font.GothamBlack,
+                TextScaled = true,
+                TextColor3 = FromRGB(202, 243, 255),
                 BackgroundTransparency = 1,
-                Position = UDim2New(0.5, 0, 0, 12),
-                Size = UDim2New(0, 0, 0, 0), -- Removed logo icon size
-                Visible = false, -- Hide logo
+                AnchorPoint = Vector2New(0.5, 0),
+                Position = UDim2New(0.5, 0, 0, 8),
+                Size = UDim2New(0, 28, 0, 28),
+                Visible = true,
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["Logo"]:AddToTheme({ImageColor3 = "Accent"})
+            })
+            Items["Logo"]:AddToTheme({TextColor3 = "Accent"})
 
 
 
@@ -5225,38 +5319,7 @@ local Library do
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })
 
-            Items["MouseBackground"] = Instances:Create("Frame", {
-                Parent = Library.Holder.Instance,
-                Name = "\0",
-                BackgroundTransparency = 1,
-                Position = UDim2New(0, 0, 0, 0),
-                BorderColor3 = FromRGB(0, 0, 0),
-                Size = UDim2New(0, 16, 0, 16),
-                BorderSizePixel = 0,
-                ZIndex = 9999,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })
 
-            Items["MouseImage"] = Instances:Create("ImageLabel", {
-                Parent = Items["MouseBackground"].Instance,
-                Name = "\0",
-                BorderColor3 = FromRGB(0, 0, 0),
-                Image = "rbxassetid://76631660114196",
-                BackgroundTransparency = 1,
-                Size = UDim2New(1, 0, 1, 0),
-                BorderSizePixel = 0,
-                ZIndex = 9999,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["MouseImage"]:AddToTheme({ImageColor3 = "Accent"})
-
-            Instances:Create("UIGradient", {
-                Parent = Items["MouseImage"].Instance,
-                Name = "\0",
-                Rotation = 90,
-                Color = RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, FromRGB(99, 108, 117))}
-            })
-
-            UserInputService.MouseIconEnabled = false
 
             Window.Items = Items
         end
@@ -5265,10 +5328,7 @@ local Library do
 
 
 
-        Library:Connect(RunService.RenderStepped, function()
-            local MouseLocation = UserInputService:GetMouseLocation() 
-            Items["MouseBackground"].Instance.Position = UDim2New(0, MouseLocation.X - 1, 0, MouseLocation.Y - 56)           
-        end)
+
 
         local OldSizes = { }
 
@@ -5284,51 +5344,60 @@ local Library do
             end
         end
 
+        local function SetGuiVisibility(Obj, State)
+            if not Obj then
+                return
+            end
+            if Obj:IsA("GuiObject") then
+                pcall(function()
+                    Obj.Visible = State
+                end)
+            end
+            for _, Child in ipairs(Obj:GetChildren()) do
+                SetGuiVisibility(Child, State)
+            end
+        end
+
         function Window:SetOpen(Bool)
-            if Debounce then 
+            if not Items or not Items["Window"] or not Items["Window"].Instance then
                 return
             end
 
+            if Bool == nil then
+                Bool = not Window.IsOpen
+            end
+
             Window.IsOpen = Bool
+            local WinInstance = Items["Window"].Instance
+            local ParentGui = WinInstance.Parent
 
-            Debounce = true 
-
-            if Window.IsOpen then 
-                Items["Window"].Instance.Visible = true 
+            if ParentGui and ParentGui:IsA("ScreenGui") then
+                ParentGui.Enabled = Bool
             end
 
-            local Descendants = Items["Window"].Instance:GetDescendants()
-            TableInsert(Descendants, Items["Window"].Instance)
+            SetGuiVisibility(WinInstance, Bool)
 
-            local NewTween
-
-            for Index, Value in Descendants do 
-                local TransparencyProperty = Tween:GetProperty(Value)
-
-                if not TransparencyProperty then
-                    continue 
-                end
-
-                if type(TransparencyProperty) == "table" then 
-                    for _, Property in TransparencyProperty do 
-                        NewTween = Tween:FadeItem(Value, Property, Bool, Library.FadeSpeed)
-                    end
-                else
-                    NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, Library.FadeSpeed)
-                end
+            if Items["Side"] and Items["Side"].Instance then
+                SetGuiVisibility(Items["Side"].Instance, Bool)
             end
-            
-            NewTween.Tween.Completed:Connect(function()
-                Debounce = false 
-                Items["Window"].Instance.Visible = Window.IsOpen
-                if Window.IsOpen then
-                    Items["MouseBackground"].Instance.Visible = true
-                    UserInputService.MouseIconEnabled = false
-                else
-                    Items["MouseBackground"].Instance.Visible = false
-                    UserInputService.MouseIconEnabled = true
-                end
-            end)
+            if Items["Content"] and Items["Content"].Instance then
+                SetGuiVisibility(Items["Content"].Instance, Bool)
+            end
+            if Items["MouseBackground"] and Items["MouseBackground"].Instance then
+                pcall(function()
+                    Items["MouseBackground"].Instance.Visible = Bool
+                end)
+            end
+
+            UserInputService.MouseIconEnabled = true
+        end
+
+        function Window:Hide()
+            self:SetOpen(false)
+        end
+
+        function Window:Show()
+            self:SetOpen(true)
         end
 
         Library:Connect(UserInputService.InputBegan, function(Input)
@@ -5681,9 +5750,9 @@ local Library do
             })  PlayerItems["Liner"]:AddToTheme({BackgroundColor3 = "Outline"})
 
             if Player == LocalPlayer then
-                PlayerItems["Status"].Instance.TextColor3 = Library.Theme.Accent
-                PlayerItems["Status"].Instance.Text = "LocalPlayer"
-                PlayerItems["Status"]:AddToTheme({TextColor3 = "Accent"})
+                PlayerItems["Status"].Instance.TextColor3 = Color3.fromRGB(255, 100, 100)
+                PlayerItems["Status"].Instance.Text = "SELF"
+                PlayerItems["Name"].Instance.TextColor3 = Color3.fromRGB(255, 100, 100)
             end
 
             local PlayerData = {
@@ -5724,18 +5793,21 @@ local Library do
                     Items["PlayerUsername"].Instance.Text = Playerlist.Player.DisplayName .. " (@" .. Playerlist.Player.Name .. ")"
                     Items["PlayerUserID"].Instance.Text = tostring(Playerlist.Player.UserId)
                     Items["PlayerAccountAge"].Instance.Text = tostring(Playerlist.Player.AccountAge) .. " days old"
+                    
+                    if Data.Callback then 
+                        Library:SafeCall(Data.Callback, Playerlist.Player, "Select")
+                    end
                 else
-                    --print("this shit rigged")
                     Playerlist.Player = nil
                     PlayerData:Toggle("Inactive")
                     Items["PlayerAvatar"].Instance.Image = "rbxassetid://98200387761744"
                     Items["PlayerUsername"].Instance.Text = "None"
                     Items["PlayerUserID"].Instance.Text = "None"
                     Items["PlayerAccountAge"].Instance.Text = "None"
-                end
-
-                if Data.Callback then 
-                    Library:SafeCall(Data.Callback, Playerlist.Player, PlayerData.PlayerStatus.Instance.Text, PlayerData.PlayerTeam.Instance.Text)
+                    
+                    if Data.Callback then 
+                        Library:SafeCall(Data.Callback, nil, "Deselect")
+                    end
                 end
             end
 
@@ -5782,10 +5854,19 @@ local Library do
             end
         end
         
-        function Playerlist:UpdatePlayerTags(PlayerName, tagsString)
+        function Playerlist:UpdatePlayerTags(PlayerName, tagsString, isAlternate)
             local pData = self.Players[PlayerName]
             if pData then
                 pData.PlayerName.Instance.Text = pData.Player.Name .. (tagsString ~= "" and (" " .. tagsString) or "")
+                if isAlternate ~= nil then
+                    if isAlternate then
+                        pData.PlayerStatus.Instance.Text = "Alternate"
+                        pData.PlayerStatus.Instance.TextColor3 = Color3.fromRGB(80, 255, 80)
+                    elseif pData.Player ~= LocalPlayer then
+                        pData.PlayerStatus.Instance.Text = "Neutral"
+                        pData.PlayerStatus.Instance.TextColor3 = Color3.fromRGB(235, 235, 235)
+                    end
+                end
             end
         end
 
@@ -6324,7 +6405,7 @@ local Library do
             })
 
             Items["Text"] = Instances:Create("TextLabel", {
-                Parent = Items["Label"].Instance,
+                Parent = Items["BlankElement"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
                 TextColor3 = FromRGB(235, 235, 235),
@@ -6348,175 +6429,169 @@ local Library do
     end
 
     Library.CreateSettingsPage = function(self, Window, Watermark, KeybindList)
-        local SettingsPage = Window:Page({Name = "Settings", SubPages = true}) do 
-            local ThemingSubPage = SettingsPage:SubPage({Name = "Theming", Columns = 2}) do 
-                local ThemesSection = ThemingSubPage:Section({Name = "Themes", Side = 1}) do
-                    for Index, Value in Library.Theme do 
-                        ThemesSection:Label(Index):Colorpicker({
-                            Name = Index,
-                            Flag = Index.."Theme",
-                            Default = Value,
-                            Callback = function(Value)
-                                Library.Theme[Index] = Value
-                                Library:ChangeTheme(Index, Value)
-                            end
-                        })
+        local SettingsPage = Window:Page({Name = "Settings", Columns = 2}) do 
+            local ConfigsSection = SettingsPage:Section({Name = "Configs", Side = 1}) do
+                local ConfigName
+                local ConfigSelected
+
+                local ConfigsSearchbox = ConfigsSection:Searchbox({
+                    Name = "SearchboxConfigs",
+                    Flag = "ConfigsSearchobx",
+                    Items = { },
+                    Multi = false,
+                    Callback = function(Value)
+                        ConfigSelected = Value
                     end
-                end
-            end
+                })
 
-            local ConfigsSubPage = SettingsPage:SubPage({Name = "Configs", Columns = 2}) do 
-                local ConfigsSection = ConfigsSubPage:Section({Name = "Configs", Side = 1}) do
-                    local ConfigName
-                    local ConfigSelected
+                ConfigsSection:Textbox({
+                    Name = "Config name", 
+                    Default = "", 
+                    Flag = "ConfigName", 
+                    Placeholder = "Enter text", 
+                    Callback = function(Value)
+                        ConfigName = Value
+                    end
+                })
 
-                    local ConfigsSearchbox = ConfigsSection:Searchbox({
-                        Name = "SearchboxConfigs",
-                        Flag = "ConfigsSearchobx",
-                        Items = { },
-                        Multi = false,
-                        Callback = function(Value)
-                            ConfigSelected = Value
-                        end
-                    })
+                local CreateAndDeleteButton = ConfigsSection:Button()
 
-                    ConfigsSection:Textbox({
-                        Name = "Config name", 
-                        Default = "", 
-                        Flag = "ConfigName", 
-                        Placeholder = "Enter text", 
-                        Callback = function(Value)
-                            ConfigName = Value
-                        end
-                    })
-
-                    local CreateAndDeleteButton = ConfigsSection:Button()
-
-                    CreateAndDeleteButton:Add("Create", function()
-                        if ConfigName and ConfigName ~= "" then
-                            if not isfile(Library.Folders.Configs .. "/" .. ConfigName .. ".json") then
-                                writefile(Library.Folders.Configs .. "/" .. ConfigName .. ".json", Library:GetConfig())
-                                Library:Notification("Success", "Created config "..ConfigName .. " succesfully", 5)
-                                Library:RefreshConfigsList(ConfigsSearchbox)
-                            else
-                                Library:Notification("Error", "Config with the name "..ConfigName .. " already exists", 5)
-                                return
-                            end
-                        end
-                    end)
-
-                    CreateAndDeleteButton:Add("Delete", function()
-                        if ConfigSelected then
-                            Library:DeleteConfig(ConfigSelected)
-                            Library:Notification("Success", "Deleted config "..ConfigSelected .. " succesfully", 5)
-                            Library:RefreshConfigsList(ConfigsSearchbox)
-                        end
-                    end)
-
-                    local LoadAndSaveButton = ConfigsSection:Button()    
-
-                    LoadAndSaveButton:Add("Load", function()
-                        if ConfigSelected then
-                            local Success, Result = Library:LoadConfig(readfile(Library.Folders.Configs .. "/" .. ConfigSelected))
-
-                            if Success then 
-                                Library:Notification("Success", "Loaded config "..ConfigSelected .. " succesfully", 5)
-                            else
-                                Library:Notification("Error", "Failed to load config "..ConfigSelected .. " report this to the devs:\n"..Result, 5)
-                            end
-                        end
-                    end)
-
-                    LoadAndSaveButton:Add("Save", function()
-                        if ConfigName and ConfigName ~= "" then
+                CreateAndDeleteButton:Add("Create", function()
+                    if ConfigName and ConfigName ~= "" then
+                        if not isfile(Library.Folders.Configs .. "/" .. ConfigName .. ".json") then
                             writefile(Library.Folders.Configs .. "/" .. ConfigName .. ".json", Library:GetConfig())
-                            Library:Notification("Success", "Saved config "..ConfigName .. " succesfully", 5)
+                            Library:Notification("Success", "Created config "..ConfigName .. " succesfully", 5)
                             Library:RefreshConfigsList(ConfigsSearchbox)
+                        else
+                            Library:Notification("Error", "Config with the name "..ConfigName .. " already exists", 5)
+                            return
                         end
-                    end)
+                    end
+                end)
 
-                    Library:RefreshConfigsList(ConfigsSearchbox)
+                CreateAndDeleteButton:Add("Delete", function()
+                    if ConfigSelected then
+                        Library:DeleteConfig(ConfigSelected)
+                        Library:Notification("Success", "Deleted config "..ConfigSelected .. " succesfully", 5)
+                        Library:RefreshConfigsList(ConfigsSearchbox)
+                    end
+                end)
+
+                local LoadAndSaveButton = ConfigsSection:Button()    
+
+                LoadAndSaveButton:Add("Load", function()
+                    if ConfigSelected then
+                        local Success, Result = Library:LoadConfig(readfile(Library.Folders.Configs .. "/" .. ConfigSelected))
+
+                        if Success then 
+                            Library:Notification("Success", "Loaded config "..ConfigSelected .. " succesfully", 5)
+                        else
+                            Library:Notification("Error", "Failed to load config "..ConfigSelected .. " report this to the devs:\n"..Result, 5)
+                        end
+                    end
+                end)
+
+                LoadAndSaveButton:Add("Save", function()
+                    if ConfigName and ConfigName ~= "" then
+                        writefile(Library.Folders.Configs .. "/" .. ConfigName .. ".json", Library:GetConfig())
+                        Library:Notification("Success", "Saved config "..ConfigName .. " succesfully", 5)
+                        Library:RefreshConfigsList(ConfigsSearchbox)
+                    end
+                end)
+
+                Library:RefreshConfigsList(ConfigsSearchbox)
+            end
+
+            local ThemesSection = SettingsPage:Section({Name = "Themes", Side = 1}) do
+                for Index, Value in Library.Theme do 
+                    ThemesSection:Label(Index):Colorpicker({
+                        Name = Index,
+                        Flag = Index.."Theme",
+                        Default = Value,
+                        Callback = function(Value)
+                            Library.Theme[Index] = Value
+                            Library:ChangeTheme(Index, Value)
+                        end
+                    })
                 end
             end
 
-            local SettingsSubPage = SettingsPage:SubPage({Name = "Settings", Columns = 2}) do 
-                local SettingsSection = SettingsSubPage:Section({Name = "Settings", Side = 1}) do
-                    SettingsSection:Toggle({
-                        Name = "Watermark",
-                        Flag = "Watermark",
-                        Default = true,
-                        Callback = function(Value)
-                            Watermark:SetVisibility(Value)
-                        end
-                    })
+            local SettingsSection = SettingsPage:Section({Name = "Settings", Side = 2}) do
+                SettingsSection:Toggle({
+                    Name = "Watermark",
+                    Flag = "Watermark",
+                    Default = true,
+                    Callback = function(Value)
+                        Watermark:SetVisibility(Value)
+                    end
+                })
 
-                    SettingsSection:Toggle({
-                        Name = "Keybind list",
-                        Flag = "Keybind list",
-                        Default = true,
-                        Callback = function(Value)
-                            KeybindList:SetVisibility(Value)
-                        end
-                    })
+                SettingsSection:Toggle({
+                    Name = "Keybind list",
+                    Flag = "Keybind list",
+                    Default = true,
+                    Callback = function(Value)
+                        KeybindList:SetVisibility(Value)
+                    end
+                })
 
-                    SettingsSection:Slider({
-                        Name = "Fade time",
-                        Flag = "FadeTime",
-                        Default = Library.FadeSpeed,
-                        Min = 0,
-                        Max = 1,
-                        Decimals = 0.01,
-                        Callback = function(Value)
-                            Library.FadeSpeed = Value
-                        end
-                    })
+                SettingsSection:Slider({
+                    Name = "Fade time",
+                    Flag = "FadeTime",
+                    Default = Library.FadeSpeed,
+                    Min = 0,
+                    Max = 1,
+                    Decimals = 0.01,
+                    Callback = function(Value)
+                        Library.FadeSpeed = Value
+                    end
+                })
 
-                    SettingsSection:Slider({
-                        Name = "Tween time",
-                        Flag = "TweenTime",
-                        Default = Library.Tween.Time,
-                        Min = 0,
-                        Max = 1,
-                        Decimals = 0.01,
-                        Callback = function(Value)
-                            Library.Tween.Time = Value
-                        end
-                    })
+                SettingsSection:Slider({
+                    Name = "Tween time",
+                    Flag = "TweenTime",
+                    Default = Library.Tween.Time,
+                    Min = 0,
+                    Max = 1,
+                    Decimals = 0.01,
+                    Callback = function(Value)
+                        Library.Tween.Time = Value
+                    end
+                })
 
-                    SettingsSection:Dropdown({
-                        Name = "Tween style",
-                        Flag = "Tween style",
-                        Items = { "Linear", "Quad", "Quart", "Back", "Bounce", "Circular", "Cubic", "Elastic", "Exponential", "Sine", "Quint" },
-                        Default = "Cubic",
-                        Callback = function(Value)
-                            Library.Tween.Style = Enum.EasingStyle[Value]
-                        end
-                    })
+                SettingsSection:Dropdown({
+                    Name = "Tween style",
+                    Flag = "Tween style",
+                    Items = { "Linear", "Quad", "Quart", "Back", "Bounce", "Circular", "Cubic", "Elastic", "Exponential", "Sine", "Quint" },
+                    Default = "Cubic",
+                    Callback = function(Value)
+                        Library.Tween.Style = Enum.EasingStyle[Value]
+                    end
+                })
 
-                    SettingsSection:Dropdown({
-                        Name = "Tween direction",
-                        Flag = "Tween direction",
-                        Items = { "In", "Out", "InOut" },
-                        Default = "Out",
-                        Callback = function(Value)
-                            Library.Tween.Direction = Enum.EasingDirection[Value]
-                        end
-                    })
+                SettingsSection:Dropdown({
+                    Name = "Tween direction",
+                    Flag = "Tween direction",
+                    Items = { "In", "Out", "InOut" },
+                    Default = "Out",
+                    Callback = function(Value)
+                        Library.Tween.Direction = Enum.EasingDirection[Value]
+                    end
+                })
 
-                    SettingsSection:Button():Add("Unload", function()
-                        Library:Unload()
-                    end)
+                SettingsSection:Button():Add("Unload", function()
+                    Library:Unload()
+                end)
 
-                    SettingsSection:Label("UI Keybind"):Keybind({
-                        Name = "Menu keybind",
-                        Flag = "UIKeybind",
-                        Default = Library.MenuKeybind,
-                        Mode = "Toggle",
-                        Callback = function()
-                            Library.MenuKeybind = Library.Flags["UIKeybind"].Key
-                        end
-                    })
-                end
+                SettingsSection:Label("UI Keybind"):Keybind({
+                    Name = "Menu keybind",
+                    Flag = "UIKeybind",
+                    Default = Library.MenuKeybind,
+                    Mode = "Toggle",
+                    Callback = function()
+                        Library.MenuKeybind = Library.Flags["UIKeybind"].Key
+                    end
+                })
             end
         end
         
@@ -6526,6 +6601,7 @@ end
 
 getgenv().Library = Library
 return Library
+
 
 
 
