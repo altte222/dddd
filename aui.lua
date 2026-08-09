@@ -5369,11 +5369,6 @@ local Library do
 
             Window.IsOpen = Bool
             local WinInstance = Items["Window"].Instance
-            local ParentGui = WinInstance.Parent
-
-            if ParentGui and ParentGui:IsA("ScreenGui") then
-                ParentGui.Enabled = Bool
-            end
 
             SetGuiVisibility(WinInstance, Bool)
 
