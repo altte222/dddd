@@ -5344,6 +5344,20 @@ local Library do
             end
         end
 
+        local function SetGuiVisibility(Obj, State)
+            if not Obj then
+                return
+            end
+            if Obj:IsA("GuiObject") then
+                pcall(function()
+                    Obj.Visible = State
+                end)
+            end
+            for _, Child in ipairs(Obj:GetChildren()) do
+                SetGuiVisibility(Child, State)
+            end
+        end
+
         function Window:SetOpen(Bool)
             if not Items or not Items["Window"] or not Items["Window"].Instance then
                 return
@@ -5355,24 +5369,35 @@ local Library do
 
             Window.IsOpen = Bool
             local WinInstance = Items["Window"].Instance
-            local Descendants = WinInstance:GetDescendants()
-            TableInsert(Descendants, WinInstance)
+            local ParentGui = WinInstance.Parent
 
-            for _, Value in ipairs(Descendants) do
-                if Value:IsA("GuiObject") then
-                    pcall(function()
-                        Value.Visible = Bool
-                    end)
-                end
+            if ParentGui and ParentGui:IsA("ScreenGui") then
+                ParentGui.Enabled = Bool
             end
 
-            if Items["MouseBackground"] then
+            SetGuiVisibility(WinInstance, Bool)
+
+            if Items["Side"] and Items["Side"].Instance then
+                SetGuiVisibility(Items["Side"].Instance, Bool)
+            end
+            if Items["Content"] and Items["Content"].Instance then
+                SetGuiVisibility(Items["Content"].Instance, Bool)
+            end
+            if Items["MouseBackground"] and Items["MouseBackground"].Instance then
                 pcall(function()
-                    Items["MouseBackground"].Instance.Visible = Window.IsOpen
+                    Items["MouseBackground"].Instance.Visible = Bool
                 end)
             end
 
             UserInputService.MouseIconEnabled = true
+        end
+
+        function Window:Hide()
+            self:SetOpen(false)
+        end
+
+        function Window:Show()
+            self:SetOpen(true)
         end
 
         Library:Connect(UserInputService.InputBegan, function(Input)
