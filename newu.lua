@@ -5241,21 +5241,22 @@ local Library do
 
             Items["Window"].Instance.Visible = false
 
-            Items["Logo"] = Instances:Create("ImageLabel", {
+            Items["Logo"] = Instances:Create("TextLabel", {
                 Parent = Items["Side"].Instance,
                 Name = "\0",
-                ImageColor3 = FromRGB(202, 243, 255),
-                ScaleType = Enum.ScaleType.Fit,
-                BorderColor3 = FromRGB(0, 0, 0),
-                AnchorPoint = Vector2New(0.5, 0),
-                Image = "rbxassetid://" .. Window.Logo,
+                Text = "K",
+                Font = Enum.Font.GothamBlack,
+                TextScaled = true,
+                TextColor3 = FromRGB(202, 243, 255),
                 BackgroundTransparency = 1,
-                Position = UDim2New(0.5, 0, 0, 12),
-                Size = UDim2New(0, 0, 0, 0), -- Removed logo icon size
-                Visible = false, -- Hide logo
+                AnchorPoint = Vector2New(0.5, 0),
+                Position = UDim2New(0.5, 0, 0, 8),
+                Size = UDim2New(0, 28, 0, 28),
+                Visible = true,
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["Logo"]:AddToTheme({ImageColor3 = "Accent"})
+            })
+            Items["Logo"]:AddToTheme({TextColor3 = "Accent"})
 
 
 
@@ -5348,12 +5349,20 @@ local Library do
                 return
             end
 
+            if Bool == nil then
+                Bool = not Window.IsOpen
+            end
+
             Window.IsOpen = Bool
             local WinInstance = Items["Window"].Instance
             local Descendants = WinInstance:GetDescendants()
             TableInsert(Descendants, WinInstance)
 
             for _, Value in ipairs(Descendants) do
+                if Value:IsA("GuiObject") then
+                    Value.Visible = Bool
+                end
+
                 local TransparencyProperty = Tween:GetProperty(Value)
                 if not TransparencyProperty then
                     continue
