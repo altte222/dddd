@@ -835,21 +835,34 @@ local Library do
     })
 
     Library.Unload = function(self)
-        for Index, Value in self.Connections do 
-            Value.Connection:Disconnect()
+        if not self then return end
+
+        for _, Value in ipairs(self.Connections or {}) do
+            if Value and Value.Connection and typeof(Value.Connection.Disconnect) == "function" then
+                pcall(function() Value.Connection:Disconnect() end)
+            end
+        end
+        self.Connections = {}
+
+        for _, Value in ipairs(self.Threads or {}) do
+            if Value and coroutine.status(Value) ~= "dead" then
+                pcall(function() coroutine.close(Value) end)
+            end
+        end
+        self.Threads = {}
+
+        if self.Holder and self.Holder.Instance then
+            pcall(function() self.Holder.Instance:Destroy() end)
+        end
+        if self.UnusedHolder and self.UnusedHolder.Instance then
+            pcall(function() self.UnusedHolder.Instance:Destroy() end)
+        end
+        if self.NotifHolder and self.NotifHolder.Instance then
+            pcall(function() self.NotifHolder.Instance:Destroy() end)
         end
 
-        for Index, Value in self.Threads do 
-            coroutine.close(Value)
-        end
-
-        if self.Holder then 
-            self.Holder:Clean()
-        end
-
-        Library = nil 
+        Library = nil
         getgenv().Library = nil
-
         UserInputService.MouseIconEnabled = true
     end
 
@@ -5319,54 +5332,90 @@ local Library do
         end
 
         function Window:SetOpen(Bool)
-            if Debounce then 
+            if Debounce or Window.IsOpen == Bool then
                 return
             end
 
             Window.IsOpen = Bool
+            Debounce = true
 
-            Debounce = true 
-
-            if Window.IsOpen then 
-                Items["Window"].Instance.Visible = true 
+            local WinInstance = Items["Window"].Instance
+            if not WinInstance then
+                Debounce = false
+                return
             end
 
-            local Descendants = Items["Window"].Instance:GetDescendants()
-            TableInsert(Descendants, Items["Window"].Instance)
+            if Window.IsOpen then
+                WinInstance.Visible = true
+            end
 
-            local NewTween
+            local Descendants = WinInstance:GetDescendants()
+            TableInsert(Descendants, WinInstance)
 
-            for Index, Value in Descendants do 
+            local completed = 0
+            local total = 0
+
+            for _, Value in ipairs(Descendants) do
                 local TransparencyProperty = Tween:GetProperty(Value)
-
-                if not TransparencyProperty then
-                    continue 
-                end
-
-                if type(TransparencyProperty) == "table" then 
-                    for _, Property in TransparencyProperty do 
-                        NewTween = Tween:FadeItem(Value, Property, Bool, Library.FadeSpeed)
+                if TransparencyProperty then
+                    total = total + 1
+                    if type(TransparencyProperty) == "table" then
+                        for _, Property in ipairs(TransparencyProperty) do
+                            total = total + 1
+                            local NewTween = Tween:FadeItem(Value, Property, Bool, Library.FadeSpeed)
+                            if NewTween and NewTween.Tween and NewTween.Tween.Completed then
+                                NewTween.Tween.Completed:Connect(function()
+                                    completed = completed + 1
+                                    if completed >= total then
+                                        Debounce = false
+                                        WinInstance.Visible = Window.IsOpen
+                                        if Window.IsOpen then
+                                            if Items["MouseBackground"] then
+                                                Items["MouseBackground"].Instance.Visible = true
+                                            end
+                                        else
+                                            if Items["MouseBackground"] then
+                                                Items["MouseBackground"].Instance.Visible = false
+                                            end
+                                        end
+                                        UserInputService.MouseIconEnabled = true
+                                    end
+                                end)
+                            end
+                        end
+                    else
+                        local NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, Library.FadeSpeed)
+                        if NewTween and NewTween.Tween and NewTween.Tween.Completed then
+                            NewTween.Tween.Completed:Connect(function()
+                                completed = completed + 1
+                                if completed >= total then
+                                    Debounce = false
+                                    WinInstance.Visible = Window.IsOpen
+                                    if Window.IsOpen then
+                                        if Items["MouseBackground"] then
+                                            Items["MouseBackground"].Instance.Visible = true
+                                        end
+                                    else
+                                        if Items["MouseBackground"] then
+                                            Items["MouseBackground"].Instance.Visible = false
+                                        end
+                                    end
+                                    UserInputService.MouseIconEnabled = true
+                                end
+                            end)
+                        end
                     end
-                else
-                    NewTween = Tween:FadeItem(Value, TransparencyProperty, Bool, Library.FadeSpeed)
                 end
             end
-            
-            NewTween.Tween.Completed:Connect(function()
-                Debounce = false 
-                Items["Window"].Instance.Visible = Window.IsOpen
-                if Window.IsOpen then
-                    if Items["MouseBackground"] then
-                        Items["MouseBackground"].Instance.Visible = true
-                    end
-                    UserInputService.MouseIconEnabled = true
-                else
-                    if Items["MouseBackground"] then
-                        Items["MouseBackground"].Instance.Visible = false
-                    end
-                    UserInputService.MouseIconEnabled = true
+
+            if total == 0 then
+                Debounce = false
+                WinInstance.Visible = Window.IsOpen
+                if Items["MouseBackground"] then
+                    Items["MouseBackground"].Instance.Visible = Window.IsOpen
                 end
-            end)
+                UserInputService.MouseIconEnabled = true
+            end
         end
 
         Library:Connect(UserInputService.InputBegan, function(Input)
