@@ -732,7 +732,7 @@ local Library do
                 Items["UIStroke2"]:Tween(nil, {Transparency = 0})
                 Items["UIStroke3"]:Tween(nil, {Transparency = 0})
 
-                RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
+                RenderStepped = Library:Connect(RunService.RenderStepped, LPH_NO_VIRTUALIZE(function()
                     MouseLocation = UserInputService:GetMouseLocation()
                     Items["Tooltip"].Instance.Position = UDim2New(0, MouseLocation.X + 8, 0, MouseLocation.Y - 35)
                 end))
@@ -747,7 +747,7 @@ local Library do
                 Items["UIStroke3"]:Tween(nil, {Transparency = 1})
 
                 if RenderStepped then 
-                    RenderStepped:Disconnect()
+                    Library:Disconnect(RenderStepped.Name)
                     RenderStepped = nil
                 end
             end)
@@ -941,27 +941,28 @@ local Library do
     end
 
     Library.Connect = function(self, Event, Callback, Name)
-        Name = Name or StringFormat("Connection%s%s", self.UnnamedConnections + 1, HttpService:GenerateGUID(false))
+        self.UnnamedConnections = (self.UnnamedConnections or 0) + 1
+        Name = Name or StringFormat("Connection%s%s", self.UnnamedConnections, HttpService:GenerateGUID(false))
 
         local NewConnection = {
             Event = Event,
             Callback = Callback,
             Name = Name,
-            Connection = nil
+            Connection = Event:Connect(Callback)
         }
-
-        Library:Thread(function()
-            NewConnection.Connection = Event:Connect(Callback)
-        end)
 
         TableInsert(self.Connections, NewConnection)
         return NewConnection
     end
 
     Library.Disconnect = function(self, Name)
-        for _, Connection in self.Connections do 
+        for Index = #self.Connections, 1, -1 do
+            local Connection = self.Connections[Index]
             if Connection.Name == Name then
-                Connection.Connection:Disconnect()
+                if Connection.Connection and typeof(Connection.Connection.Disconnect) == "function" then
+                    Connection.Connection:Disconnect()
+                end
+                table.remove(self.Connections, Index)
                 break
             end
         end
@@ -1125,6 +1126,13 @@ local Library do
 
     Library.Lerp = function(self, Start, Finish, Time)
         return Start + (Finish - Start) * Time
+    end
+
+    -- Change the menu toggle keybind at runtime.
+    -- Pass an Enum.KeyCode or Enum.UserInputType value.
+    -- e.g. Library:SetMenuKeybind(Enum.KeyCode.RightAlt)
+    Library.SetMenuKeybind = function(self, Key)
+        Library.MenuKeybind = tostring(Key)
     end
 
     -- Components
@@ -2483,7 +2491,7 @@ local Library do
                     Items["OptionHolder"].Instance.Parent = Library.Holder.Instance
                     Items["Icon"]:Tween(nil, {Rotation = -90})
                     
-                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
+                    RenderStepped = Library:Connect(RunService.RenderStepped, LPH_NO_VIRTUALIZE(function()
                         Items["OptionHolder"].Instance.Position = UDim2New(0, Items["RealDropdown"].Instance.AbsolutePosition.X, 0, Items["RealDropdown"].Instance.AbsolutePosition.Y + Items["RealDropdown"].Instance.AbsoluteSize.Y + 5)
                         Items["OptionHolder"].Instance.Size = UDim2New(0, Items["RealDropdown"].Instance.AbsoluteSize.X, 0, 0)
                     end))
@@ -2505,7 +2513,7 @@ local Library do
                     end
 
                     if RenderStepped then 
-                        RenderStepped:Disconnect()
+                        Library:Disconnect(RenderStepped.Name)
                         RenderStepped = nil
                     end
 
@@ -3646,7 +3654,7 @@ local Library do
                     Items["ColorpickerWindow"].Instance.Visible = true
                     Items["ColorpickerWindow"].Instance.Parent = Library.Holder.Instance
                     
-                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
+                    RenderStepped = Library:Connect(RunService.RenderStepped, LPH_NO_VIRTUALIZE(function()
                         Items["ColorpickerWindow"].Instance.Position = UDim2New(0, Items["ColorpickerButton"].Instance.AbsolutePosition.X, 0, Items["ColorpickerButton"].Instance.AbsolutePosition.Y + Items["ColorpickerButton"].Instance.AbsoluteSize.Y + 5)
                     end))
 
@@ -3667,7 +3675,7 @@ local Library do
                     end
 
                     if RenderStepped then 
-                        RenderStepped:Disconnect()
+                        Library:Disconnect(RenderStepped.Name)
                         RenderStepped = nil
                     end
                 end
@@ -4097,6 +4105,11 @@ local Library do
                     Keybind.Value = TextToDisplay
                     Items["KeyButton"].Instance.Text = TextToDisplay
 
+                    -- If this keybind is marked as the menu key, keep Library.MenuKeybind in sync
+                    if Data.IsMenuKey then
+                        Library.MenuKeybind = Keybind.Key
+                    end
+
                     Library.Flags[Keybind.Flag] = {
                         Mode = Keybind.Mode,
                         Key = Keybind.Key,
@@ -4128,6 +4141,11 @@ local Library do
                     Keybind.Value = TextToDisplay
                     Items["KeyButton"].Instance.Text = TextToDisplay
 
+                    -- Sync menu keybind if flagged
+                    if Data.IsMenuKey then
+                        Library.MenuKeybind = Keybind.Key
+                    end
+
                     if Data.Callback then 
                         Library:SafeCall(Data.Callback, Keybind.Toggled)
                     end
@@ -4148,7 +4166,7 @@ local Library do
             end
 
             local Debounce = false
-            local RenderStepped  
+            local RenderSteppedConnection  
 
             function Keybind:SetOpen(Bool)
                 if Debounce then 
@@ -4163,7 +4181,7 @@ local Library do
                     Items["KeybindWindow"].Instance.Visible = true
                     Items["KeybindWindow"].Instance.Parent = Library.Holder.Instance
                     
-                    RenderStepped = RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
+                    RenderSteppedConnection = Library:Connect(RunService.RenderStepped, LPH_NO_VIRTUALIZE(function()
                         Items["KeybindWindow"].Instance.Position = UDim2New(0, Items["KeyButton"].Instance.AbsolutePosition.X, 0, Items["KeyButton"].Instance.AbsolutePosition.Y + Items["KeyButton"].Instance.AbsoluteSize.Y + 5)
                     end))
 
@@ -4183,9 +4201,9 @@ local Library do
                         end
                     end
 
-                    if RenderStepped then 
-                        RenderStepped:Disconnect()
-                        RenderStepped = nil
+                    if RenderSteppedConnection then 
+                        Library:Disconnect(RenderSteppedConnection.Name)
+                        RenderSteppedConnection = nil
                     end
                 end
 
@@ -4857,9 +4875,7 @@ local Library do
 
             Items["Input"]:Connect("FocusLost", function()
                 if SearchStepped then
-                    SearchStepped:Disconnect()
-                    SearchStepped = nil
-                end
+                        Library:Disconnect(SearchStepped.Name)
             end)
 
             for Index, Value in Data.Items do 
@@ -4964,9 +4980,9 @@ local Library do
                 AnchorPoint = Vector2New(0, 0.5),
                 Position = UDim2New(0, 12, 0.5, 55),
                 BorderColor3 = FromRGB(12, 12, 12),
-                Size = UDim2New(0, 116, 0, 0),
+                Size = UDim2New(0, 0, 0, 0),
                 BorderSizePixel = 2,
-                AutomaticSize = Enum.AutomaticSize.None,
+                AutomaticSize = Enum.AutomaticSize.X,
                 BackgroundColor3 = FromRGB(14, 17, 15)
             })  Items["KeybindList"]:AddToTheme({BackgroundColor3 = "Background", BorderColor3 = "Border"})
 
@@ -5023,9 +5039,9 @@ local Library do
                 BorderColor3 = FromRGB(0, 0, 0),
                 BackgroundTransparency = 1,
                 Position = UDim2New(0, 0, 0, 32),
-                Size = UDim2New(1, 0, 0, 0),
+                Size = UDim2New(0, 0, 0, 0),
                 BorderSizePixel = 0,
-                AutomaticSize = Enum.AutomaticSize.Y,
+                AutomaticSize = Enum.AutomaticSize.XY,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })
 
@@ -5050,8 +5066,10 @@ local Library do
                 if Library.Flags["KeybindList"] ~= false then
                     Items["KeybindList"].Instance.Visible = true
                 end
+                -- Only set height; X is driven by AutomaticSize so the frame
+                -- expands to fit whichever keybind label is widest.
                 local height = 32 + (activeCount * 15) + ((activeCount - 1) * 2) + 16
-                Items["KeybindList"].Instance.Size = UDim2New(0, 116, 0, height)
+                Items["KeybindList"].Instance.Size = UDim2New(0, 0, 0, height)
             end
         end
 
@@ -5368,20 +5386,6 @@ local Library do
             end
         end
 
-        local function SetGuiVisibility(Obj, State)
-            if not Obj then
-                return
-            end
-            if Obj:IsA("GuiObject") then
-                pcall(function()
-                    Obj.Visible = State
-                end)
-            end
-            for _, Child in ipairs(Obj:GetChildren()) do
-                SetGuiVisibility(Child, State)
-            end
-        end
-
         function Window:SetOpen(Bool)
             if not Items or not Items["Window"] or not Items["Window"].Instance then
                 return
@@ -5392,16 +5396,12 @@ local Library do
             end
 
             Window.IsOpen = Bool
-            local WinInstance = Items["Window"].Instance
+            -- Only toggle the top-level window frame. Children that live in
+            -- UnusedHolder (inactive pages/subpages) must NOT be touched here;
+            -- the recursive SetGuiVisibility was making those orphaned frames
+            -- visible and causing section bleed across tabs/subtabs after hide.
+            Items["Window"].Instance.Visible = Bool
 
-            SetGuiVisibility(WinInstance, Bool)
-
-            if Items["Side"] and Items["Side"].Instance then
-                SetGuiVisibility(Items["Side"].Instance, Bool)
-            end
-            if Items["Content"] and Items["Content"].Instance then
-                SetGuiVisibility(Items["Content"].Instance, Bool)
-            end
             if Items["MouseBackground"] and Items["MouseBackground"].Instance then
                 pcall(function()
                     Items["MouseBackground"].Instance.Visible = Bool
@@ -5420,7 +5420,8 @@ local Library do
         end
 
         Library:Connect(UserInputService.InputBegan, function(Input)
-            if tostring(Input.KeyCode) == Library.MenuKeybind or tostring(Input.UserInputType) == Library.MenuKeybind then
+            local menuKey = tostring(Library.MenuKeybind)
+            if tostring(Input.KeyCode) == menuKey or tostring(Input.UserInputType) == menuKey then
                 Window:SetOpen(not Window.IsOpen)
             end
         end)
@@ -6516,8 +6517,9 @@ local Library do
 end
 
 getgenv().Library = Library
+getgenv().UnloadAlternate = function()
+    if getgenv().Library and getgenv().Library.Unload then
+        pcall(getgenv().Library.Unload, getgenv().Library)
+    end
+end
 return Library
-
-
-
-
