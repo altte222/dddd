@@ -1604,6 +1604,19 @@ local Library do
                 SubPage:Turn(true)
             end
 
+            SubPage.Items = Items
+            function SubPage:SetVisibility(Bool)
+                Items["Inactive"].Instance.Visible = Bool
+                if not Bool and SubPage.Active then
+                    for _, val in ipairs(Data.Page.SubPages) do
+                        if val ~= SubPage and val.Items and val.Items["Inactive"] and val.Items["Inactive"].Instance.Visible then
+                            val:Turn(true)
+                            break
+                        end
+                    end
+                end
+            end
+
             TableInsert(Data.Page.SubPages, SubPage)
             return SubPage
         end
@@ -4872,7 +4885,7 @@ local Library do
                 BorderColor3 = FromRGB(12, 12, 12),
                 Size = UDim2New(0, 116, 0, 0),
                 BorderSizePixel = 2,
-                AutomaticSize = Enum.AutomaticSize.Y,
+                AutomaticSize = Enum.AutomaticSize.None,
                 BackgroundColor3 = FromRGB(14, 17, 15)
             })  Items["KeybindList"]:AddToTheme({BackgroundColor3 = "Background", BorderColor3 = "Border"})
 
@@ -4943,6 +4956,24 @@ local Library do
             })
         end
 
+        local function updateSize()
+            local activeCount = 0
+            for _, child in ipairs(Items["Content"].Instance:GetChildren()) do
+                if child:IsA("TextLabel") and child.Visible then
+                    activeCount = activeCount + 1
+                end
+            end
+            if activeCount == 0 then
+                Items["KeybindList"].Instance.Visible = false
+            else
+                if Library.Flags["Keybind list"] ~= false then
+                    Items["KeybindList"].Instance.Visible = true
+                end
+                local height = 32 + (activeCount * 15) + ((activeCount - 1) * 2) + 16
+                Items["KeybindList"].Instance.Size = UDim2New(0, 116, 0, height)
+            end
+        end
+
         function KeybindList:Add(Key, Name, Mode)
             local NewKey = Instances:Create("TextLabel", {
                 Parent = Items["Content"].Instance,
@@ -4971,9 +5002,11 @@ local Library do
                 if Bool then
                     NewKey.Instance.Visible = true
                     NewKey:Tween(nil, {TextTransparency = 0})
+                    updateSize()
                 else
                     NewKey:Tween(nil, {TextTransparency = 1}).Tween.Completed:Connect(function()
                         NewKey.Instance.Visible = false
+                        updateSize()
                     end)
                 end
             end
@@ -4983,6 +5016,9 @@ local Library do
 
         function KeybindList:SetVisibility(Bool)
             Items["KeybindList"].Instance.Visible = Bool
+            if Bool then
+                updateSize()
+            end
         end
 
         return KeybindList
