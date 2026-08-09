@@ -5360,31 +5360,18 @@ local Library do
 
             for _, Value in ipairs(Descendants) do
                 if Value:IsA("GuiObject") then
-                    Value.Visible = Bool
-                end
-
-                local TransparencyProperty = Tween:GetProperty(Value)
-                if not TransparencyProperty then
-                    continue
-                end
-
-                if type(TransparencyProperty) == "table" then
-                    for _, Property in ipairs(TransparencyProperty) do
-                        pcall(function()
-                            Value[Property] = Bool and 0 or 1
-                        end)
-                    end
-                else
                     pcall(function()
-                        Value[TransparencyProperty] = Bool and 0 or 1
+                        Value.Visible = Bool
                     end)
                 end
             end
 
-            WinInstance.Visible = Window.IsOpen
             if Items["MouseBackground"] then
-                Items["MouseBackground"].Instance.Visible = Window.IsOpen
+                pcall(function()
+                    Items["MouseBackground"].Instance.Visible = Window.IsOpen
+                end)
             end
+
             UserInputService.MouseIconEnabled = true
         end
 
